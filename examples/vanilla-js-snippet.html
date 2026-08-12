@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Ejemplo Tracardi en HTML / JavaScript Vanilla</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; padding: 2rem; }
+    .card { background: #1e293b; padding: 1.5rem; border-radius: 12px; border: 1px solid #334155; max-width: 600px; }
+    button { background: #3b82f6; color: white; border: none; padding: 0.75rem 1.2rem; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 0.5rem; margin-top: 0.5rem; }
+    button:hover { background: #2563eb; }
+    pre { background: #090d16; padding: 1rem; border-radius: 6px; overflow-x: auto; color: #38bdf8; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>🚀 Integración Tracardi (Vanilla JS)</h2>
+    <p>Este archivo muestra cómo registrar eventos directamente desde cualquier página web.</p>
+    
+    <button onclick="trackPageView()">1. Registrar Vista de Página</button>
+    <button onclick="identifyUser()">2. Identificar Usuario</button>
+    <button onclick="trackAddToCart()">3. Añadir al Carrito</button>
+
+    <h3>Último Payload Enviado:</h3>
+    <pre id="output">Haz clic en un botón para enviar un evento...</pre>
+  </div>
+
+  <script>
+    // Configuración del Tracker de Tracardi
+    const TRACARDI_URL = 'http://localhost:8686';
+    const SOURCE_ID = 'demo-source';
+    
+    // Obtenemos o generamos un Session ID para el navegador actual
+    let sessionId = localStorage.getItem('tracardi_session_id');
+    if (!sessionId) {
+      sessionId = 'sess_' + Math.random().toString(36).substring(2, 11);
+      localStorage.setItem('tracardi_session_id', sessionId);
+    }
+
+    let profileId = localStorage.getItem('tracardi_profile_id');
+
+    async function sendTracardiEvent(eventType, properties = {}, profileData = null) {
+      const payload = {
+        source: { id: SOURCE_ID },
+        session: { id: sessionId },
+        profile: profileId ? { id: profileId } : null,
+        events: [
+          {
+            type: eventType,
+            properties: properties
+          }
+        ]
+      };
+
+      try {
+        const response = await fetch(`${TRACARDI_URL}/track`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        
+        if (result.profile && result.profile.id) {
+          profileId = result.profile.id;
+          localStorage.setItem('tracardi_profile_id', profileId);
+        }
+
+        document.getElementById('output').textContent = JSON.stringify({
+          sent: payload,
+          tracardiResponse: result
+        }, null, 2);
+      } catch (err) {
+        document.getElementById('output').textContent = 'Error: ' + err.message;
+      }
+    }
+
+    function trackPageView() {
+      sendTracardiEvent('page-view', {
+        title: document.title,
+        url: window.location.href,
+        referrer: document.referrer
+      });
+    }
+
+    function identifyUser() {
+      sendTracardiEvent('user-identify', {
+        name: 'Maria Lopez',
+        email: 'maria.lopez@example.com',
+        role: 'Premium Client'
+      });
+    }
+
+    function trackAddToCart() {
+      sendTracardiEvent('add-to-cart', {
+        product_id: 'prod_99',
+        product_name: 'Suscripción Anual Pro',
+        price: 199.99,
+        currency: 'USD'
+      });
+    }
+  </script>
+
+</body>
+</html>

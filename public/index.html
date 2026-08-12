@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tracardi CDP - Demo Interactive Center</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Header / Navigation Bar -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="logo-icon">🔥</div>
+        <div>
+          <h1>Tracardi CDP Demo</h1>
+          <p class="subtitle">Guía de integración & Centro de Pruebas Interactivo</p>
+        </div>
+      </div>
+      
+      <div class="system-status">
+        <div class="status-indicator online" id="status-indicator">
+          <span class="dot"></span>
+          <span id="status-text">Conectado (Port 8686)</span>
+        </div>
+        <a href="http://localhost:8787" target="_blank" class="btn btn-outline">
+          📊 Abrir Dashboard (8787)
+        </a>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="tab-btn active" data-tab="sandbox-tab">
+        ⚡ Simulador de Eventos (Frontend)
+      </button>
+      <button class="tab-btn" data-tab="backend-tab">
+        🖥️ Eventos Servidor a Servidor (Backend)
+      </button>
+      <button class="tab-btn" data-tab="snippets-tab">
+        📜 Guía de Código & Snippets
+      </button>
+      <button class="tab-btn" data-tab="architecture-tab">
+        💡 ¿Cómo Funciona Tracardi?
+      </button>
+    </nav>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="main-container">
+
+    <!-- TAB 1: FRONTEND SIMULATOR -->
+    <section id="sandbox-tab" class="tab-content active">
+      <div class="grid-2col">
+
+        <!-- Left Column: Controls & User Persona -->
+        <div class="card shadow">
+          <div class="card-header">
+            <h2>1. Selección de Perfil de Usuario</h2>
+            <span class="badge badge-purple">Frontend Track</span>
+          </div>
+
+          <p class="text-muted">Tracardi une eventos anónimos con perfiles identificados en tiempo real. Selecciona una persona o ingresa datos:</p>
+
+          <div class="persona-selector">
+            <button class="persona-chip active" onclick="selectPersona('ana')">
+              👩 Ana Lopez (Cliente SaaS)
+            </button>
+            <button class="persona-chip" onclick="selectPersona('carlos')">
+              👨 Carlos Gomez (Cliente VIP)
+            </button>
+            <button class="persona-chip" onclick="selectPersona('anon')">
+              👤 Usuario Anónimo
+            </button>
+          </div>
+
+          <form id="persona-form" class="form-grid">
+            <div class="form-group">
+              <label>Nombre Completo</label>
+              <input type="text" id="user-name" value="Ana Lopez">
+            </div>
+            <div class="form-group">
+              <label>Correo Electrónico</label>
+              <input type="email" id="user-email" value="ana.lopez@ejemplo.com">
+            </div>
+            <div class="form-group">
+              <label>ID de Sesión (Session ID)</label>
+              <input type="text" id="session-id" readonly>
+            </div>
+            <div class="form-group">
+              <label>ID de Perfil (Profile ID)</label>
+              <input type="text" id="profile-id" placeholder="Se asignará automáticamente..." readonly>
+            </div>
+          </form>
+
+          <div class="divider"></div>
+
+          <div class="card-header">
+            <h2>2. Disparar Eventos a Tracardi</h2>
+          </div>
+
+          <div class="actions-grid">
+            <button class="action-btn btn-blue" onclick="triggerEvent('page-view')">
+              <span class="icon">👁️</span>
+              <div>
+                <strong>page-view</strong>
+                <small>Registrar vista de página</small>
+              </div>
+            </button>
+
+            <button class="action-btn btn-green" onclick="triggerEvent('user-identify')">
+              <span class="icon">👤</span>
+              <div>
+                <strong>user-identify</strong>
+                <small>Vincular/Identificar usuario</small>
+              </div>
+            </button>
+
+            <button class="action-btn btn-amber" onclick="triggerEvent('add-to-cart')">
+              <span class="icon">🛒</span>
+              <div>
+                <strong>add-to-cart</strong>
+                <small>Añadir producto al carrito</small>
+              </div>
+            </button>
+
+            <button class="action-btn btn-purple" onclick="triggerEvent('purchase')">
+              <span class="icon">💳</span>
+              <div>
+                <strong>purchase</strong>
+                <small>Simular transacción realizada</small>
+              </div>
+            </button>
+
+            <button class="action-btn btn-teal" onclick="triggerEvent('lead-signup')">
+              <span class="icon">📧</span>
+              <div>
+                <strong>lead-signup</strong>
+                <small>Registro a Newsletter</small>
+              </div>
+            </button>
+
+            <button class="action-btn btn-rose" onclick="triggerEvent('custom-event')">
+              <span class="icon">⚙️</span>
+              <div>
+                <strong>custom-event</strong>
+                <small>Evento personalizado dinámico</small>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Right Column: Inspector & Live Feed -->
+        <div class="card shadow card-dark">
+          <div class="card-header">
+            <h2>🔍 Tracardi Live Inspector</h2>
+            <button class="btn btn-sm btn-ghost" onclick="clearLogs()">Limpiar Logs</button>
+          </div>
+
+          <div class="inspector-tabs">
+            <button class="insp-tab active" onclick="switchInspTab('payload')">Payload Enviado</button>
+            <button class="insp-tab" onclick="switchInspTab('response')">Respuesta Tracardi</button>
+            <button class="insp-tab" onclick="switchInspTab('history')">Historial (<span id="event-count">0</span>)</button>
+          </div>
+
+          <!-- Payload View -->
+          <div id="insp-payload-view" class="insp-view active">
+            <div class="code-header">
+              <span>POST http://localhost:8686/track</span>
+              <button class="btn-copy" onclick="copyCode('payload-json')">Copiar</button>
+            </div>
+            <pre id="payload-json" class="code-block">// Haz clic en cualquier botón a la izquierda para enviar un evento...</pre>
+          </div>
+
+          <!-- Response View -->
+          <div id="insp-response-view" class="insp-view">
+            <div class="code-header">
+              <span>HTTP 200 OK</span>
+              <button class="btn-copy" onclick="copyCode('response-json')">Copiar</button>
+            </div>
+            <pre id="response-json" class="code-block">// La respuesta del motor Tracardi aparecerá aquí...</pre>
+          </div>
+
+          <!-- History Feed -->
+          <div id="insp-history-view" class="insp-view">
+            <div id="log-list" class="log-list">
+              <div class="empty-state">No se han enviado eventos aún.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 2: BACKEND TRACKING -->
+    <section id="backend-tab" class="tab-content">
+      <div class="grid-2col">
+        
+        <div class="card shadow">
+          <div class="card-header">
+            <h2>🖥️ Eventos Servidor a Servidor (Backend)</h2>
+            <span class="badge badge-teal">Node.js / Express</span>
+          </div>
+
+          <p class="text-muted">
+            En aplicaciones web reales, muchos eventos críticos (como pagos confirmados por Stripe, renovaciones de suscripción, cambios de estado en DB) ocurren en el backend y deben enviarse directamente a Tracardi.
+          </p>
+
+          <h3>Pruebas de Backend Disponibles:</h3>
+
+          <div class="backend-test-box">
+            <div class="test-header">
+              <strong>1. Enviar evento vía API REST (/track) desde Node.js</strong>
+              <small>Usa la fuente <code>demo-source</code></small>
+            </div>
+            <p>Simula que tu servidor Express envía un evento de backend a Tracardi.</p>
+            <button class="btn btn-blue" onclick="testBackendTrack()">
+              🚀 Enviar Evento REST Backend
+            </button>
+          </div>
+
+          <div class="backend-test-box">
+            <div class="test-header">
+              <strong>2. Enviar evento vía Webhook (/collect)</strong>
+              <small>Usa la fuente <code>demo-webhook-source</code></small>
+            </div>
+            <p>Simula un Webhook de Stripe/MercadoPago que notifica la recepción de un pago sin necesidad de session/profile preexistente.</p>
+            <button class="btn btn-green" onclick="testWebhookTrack()">
+              🔔 Simular Webhook de Pago
+            </button>
+          </div>
+        </div>
+
+        <div class="card shadow card-dark">
+          <div class="card-header">
+            <h2>📤 Inspección de Respuestas del Backend</h2>
+          </div>
+          <div class="code-header">
+            <span id="backend-status-label">Respuesta Servidor Node -> Tracardi</span>
+            <button class="btn-copy" onclick="copyCode('backend-response-json')">Copiar</button>
+          </div>
+          <pre id="backend-response-json" class="code-block">// Presiona los botones de prueba de backend para ver la ejecución...</pre>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 3: CODE SNIPPETS -->
+    <section id="snippets-tab" class="tab-content">
+      <div class="card shadow">
+        <div class="card-header">
+          <h2>📜 Ejemplos de Código Listos para Copiar y Pegar</h2>
+        </div>
+
+        <p class="text-muted">
+          Elige tu tecnología favorita para aprender cómo integrar Tracardi en tus proyectos:
+        </p>
+
+        <div class="snippets-nav">
+          <button class="snip-btn active" onclick="switchSnippet('vanillajs')">Vanilla JS / HTML</button>
+          <button class="snip-btn" onclick="switchSnippet('react')">React / Next.js</button>
+          <button class="snip-btn" onclick="switchSnippet('node')">Node.js (Express)</button>
+          <button class="snip-btn" onclick="switchSnippet('python')">Python (FastAPI/Django)</button>
+          <button class="snip-btn" onclick="switchSnippet('curl')">cURL / HTTP</button>
+        </div>
+
+        <!-- Snippet Vanilla JS -->
+        <div id="snip-vanillajs" class="snip-view active">
+          <div class="code-header">
+            <span>Ejemplo Frontend Vanilla JS (ejemplos/vanilla-js-snippet.html)</span>
+            <button class="btn-copy" onclick="copyCode('code-vanillajs')">Copiar</button>
+          </div>
+          <pre id="code-vanillajs" class="code-block">
+async function sendEvent(eventType, properties = {}) {
+  const payload = {
+    source: { id: "demo-source" },
+    session: { id: localStorage.getItem("session_id") || "sess_001" },
+    events: [
+      {
+        type: eventType,
+        properties: properties
+      }
+    ]
+  };
+
+  const res = await fetch("http://localhost:8686/track", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  
+  return await res.json();
+}</pre>
+        </div>
+
+        <!-- Snippet React -->
+        <div id="snip-react" class="snip-view">
+          <div class="code-header">
+            <span>Hook de React (ejemplos/react-integration.jsx)</span>
+            <button class="btn-copy" onclick="copyCode('code-react')">Copiar</button>
+          </div>
+          <pre id="code-react" class="code-block">
+import { useCallback, useState } from 'react';
+
+export function useTracardi(sourceId = 'demo-source') {
+  const [sessionId] = useState(() => 'sess-' + Math.random().toString(36).substr(2, 9));
+
+  const track = useCallback(async (eventType, properties = {}) => {
+    const response = await fetch('http://localhost:8686/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { id: sourceId },
+        session: { id: sessionId },
+        events: [{ type: eventType, properties }]
+      })
+    });
+    return response.json();
+  }, [sourceId, sessionId]);
+
+  return { track, sessionId };
+}</pre>
+        </div>
+
+        <!-- Snippet Node -->
+        <div id="snip-node" class="snip-view">
+          <div class="code-header">
+            <span>Backend Node.js (ejemplos/node-backend-tracking.js)</span>
+            <button class="btn-copy" onclick="copyCode('code-node')">Copiar</button>
+          </div>
+          <pre id="code-node" class="code-block">
+const http = require('http');
+
+async function trackEvent(eventType, properties = {}) {
+  const payload = JSON.stringify({
+    source: { id: 'demo-source' },
+    session: { id: `backend-sess-${Date.now()}` },
+    events: [{ type: eventType, properties }]
+  });
+
+  // Enviar a Tracardi API (http://localhost:8686/track)
+  return fetch('http://localhost:8686/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: payload
+  }).then(r => r.json());
+}</pre>
+        </div>
+
+        <!-- Snippet Python -->
+        <div id="snip-python" class="snip-view">
+          <div class="code-header">
+            <span>Backend Python (ejemplos/python-backend-tracking.py)</span>
+            <button class="btn-copy" onclick="copyCode('code-python')">Copiar</button>
+          </div>
+          <pre id="code-python" class="code-block">
+import requests
+
+def send_tracardi_event(event_type, properties):
+    url = "http://localhost:8686/track"
+    payload = {
+        "source": {"id": "demo-source"},
+        "session": {"id": "python-session-001"},
+        "events": [
+            {
+                "type": event_type,
+                "properties": properties
+            }
+        ]
+    }
+    response = requests.post(url, json=payload)
+    return response.json()</pre>
+        </div>
+
+        <!-- Snippet cURL -->
+        <div id="snip-curl" class="snip-view">
+          <div class="code-header">
+            <span>Comandos cURL (ejemplos/curl-examples.sh)</span>
+            <button class="btn-copy" onclick="copyCode('code-curl')">Copiar</button>
+          </div>
+          <pre id="code-curl" class="code-block">
+# 1. Enviar evento REST
+curl -X POST "http://localhost:8686/track" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": { "id": "demo-source" },
+    "session": { "id": "sess-123" },
+    "events": [{ "type": "page-view", "properties": { "url": "/home" } }]
+  }'
+
+# 2. Enviar Webhook Servidor-a-Servidor
+curl -X POST "http://localhost:8686/collect/payment-success/demo-webhook-source/sess-123" \
+  -H "Content-Type: application/json" \
+  -d '{ "properties": { "amount": 99.00, "status": "approved" } }'</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: ARCHITECTURE & GUIDE -->
+    <section id="architecture-tab" class="tab-content">
+      <div class="card shadow">
+        <div class="card-header">
+          <h2>💡 Conceptos Clave para Entender y Usar Tracardi</h2>
+        </div>
+
+        <div class="guide-grid">
+          <div class="guide-card">
+            <div class="guide-icon">🔌</div>
+            <h3>1. Event Source (Fuente)</h3>
+            <p>Representa el origen de los datos (tu sitio web, app móvil, webhook de Stripe o API backend). Cada fuente tiene un ID único (ej: <code>demo-source</code>).</p>
+          </div>
+
+          <div class="guide-card">
+            <div class="guide-icon">👤</div>
+            <h3>2. Profile (Perfil de Cliente)</h3>
+            <p>Es la identidad unificada del usuario. Tracardi fusiona automáticamente eventos anónimos y conocidos pertenecientes a la misma persona.</p>
+          </div>
+
+          <div class="guide-card">
+            <div class="guide-icon">⏱️</div>
+            <h3>3. Session (Sesión)</h3>
+            <p>Agrupa eventos continuos realizados por un usuario en un intervalo de tiempo (similar a las sesiones de navegación web).</p>
+          </div>
+
+          <div class="guide-card">
+            <div class="guide-icon">⚡</div>
+            <h3>4. Event (Evento)</h3>
+            <p>Cualquier acción de interés: <code>page-view</code>, <code>add-to-cart</code>, <code>purchase</code>, <code>lead-signup</code>. Lleva metadatos y propiedades personalizadas.</p>
+          </div>
+
+          <div class="guide-card">
+            <div class="guide-icon">🔀</div>
+            <h3>5. Flow / Workflow (Flujo de Trabajo)</h3>
+            <p>En el Dashboard (8787), puedes crear flujos visuales que reaccionan a eventos: segmentar usuarios, enviar correos, enriquecer datos o llamar APIs.</p>
+          </div>
+
+          <div class="guide-card">
+            <div class="guide-icon">🎯</div>
+            <h3>6. Rule (Regla)</h3>
+            <p>Conecta un <strong>Event Source</strong> y un tipo de <strong>Evento</strong> con un <strong>Workflow</strong> en Tracardi.</p>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3>📊 ¿Cómo verificar tus datos en Tracardi Dashboard?</h3>
+        <ol class="step-list">
+          <li>Abre el dashboard de Tracardi en tu navegador: <a href="http://localhost:8787" target="_blank">http://localhost:8787</a>.</li>
+          <li>Inicia sesión con tus credenciales (email: <code>swumplurd@gmail.com</code> / pass: <code>123456</code>).</li>
+          <li>Ve al menú lateral <strong>Events</strong> para ver la lista en tiempo real de todos los eventos enviados desde este simulador.</li>
+          <li>Ve a <strong>Profiles</strong> para ver los perfiles creados y cómo se actualizan los datos demográficos y de comportamiento.</li>
+          <li>Ve a <strong>Flows</strong> para diseñar reglas automatizadas.</li>
+        </ol>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Notification Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "name": "tacardi-demo",
+  "version": "1.0.0",
+  "description": "Demo completa e interactiva para aprender a integrar Tracardi CDP en cualquier proyecto (Frontend, Backend, Webhooks)",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node setup.js && node server.js",
+    "dev": "node setup.js && node server.js",
+    "setup": "node setup.js"
+  },
+  "keywords": [
+    "tracardi",
+    "cdp",
+    "demo",
+    "customer-data-platform",
+    "tracking",
+    "analytics"
+  ],
+  "author": "Antigravity AI",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
