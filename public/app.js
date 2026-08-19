@@ -329,7 +329,19 @@ async function loadOfertas() {
   }
 }
 
-// Filtrar ofertas por categoría
+// Mapeo de categoría a evento de segmentación Tracardi
+function getCategorySegmentationEvent(category) {
+  const map = {
+    comida: 'comida-seg',
+    electronica: 'electronica-seg',
+    cine: 'cine-seg',
+    ropa: 'ropa-seg',
+    online: 'online-seg'
+  };
+  return map[category ? category.toLowerCase() : ''] || null;
+}
+
+// Filtrar ofertas por categoría y despachar evento de segmentación
 function filterOfertas(category) {
   activeOfertaCategory = category;
 
@@ -344,11 +356,20 @@ function filterOfertas(category) {
 
   renderOfertas();
 
-  // Rastrear filtro en Tracardi
-  trackOfertaEvent('category-filter', {
-    category: category,
-    filter_time: new Date().toISOString()
-  }, false);
+  // Rastrear evento de segmentación específico si corresponde a una categoría mapeada
+  const segEvent = getCategorySegmentationEvent(category);
+  if (segEvent) {
+    trackOfertaEvent(segEvent, {
+      category: category,
+      action: 'category_filter',
+      filter_time: new Date().toISOString()
+    }, true);
+  } else {
+    trackOfertaEvent('category-filter', {
+      category: category,
+      filter_time: new Date().toISOString()
+    }, false);
+  }
 }
 
 // Renderizar la lista de ofertas según el filtro activo
@@ -382,7 +403,7 @@ function renderOfertas() {
     const catUpper = oferta.categoria.toUpperCase();
 
     return `
-      <div class="oferta-card" data-id="${escapeHtml(oferta.id)}">
+      <div class="oferta-card" data-id="${escapeHtml(oferta.id)}" onclick="viewOfferDetail('${escapeHtml(oferta.id)}')">
         <div class="oferta-card-header">
           <span class="oferta-badge-cat cat-${escapeHtml(oferta.categoria)}">${icon} ${catUpper}</span>
           <span class="oferta-badge-discount">-${oferta.descuento_porcentaje}% OFF</span>
@@ -402,7 +423,7 @@ function renderOfertas() {
             <span class="oferta-price-current">$${oferta.precio_oferta.toFixed(2)} <small>${escapeHtml(oferta.moneda)}</small></span>
             <span class="oferta-price-original">$${oferta.precio_original.toFixed(2)}</span>
           </div>
-          <button class="btn btn-sm btn-blue btn-ver-detalle" onclick="viewOfferDetail('${escapeHtml(oferta.id)}')">
+          <button class="btn btn-sm btn-blue btn-ver-detalle" onclick="event.stopPropagation(); viewOfferDetail('${escapeHtml(oferta.id)}')">
             Ver Detalle →
           </button>
         </div>
@@ -511,8 +532,9 @@ function viewOfferDetail(offerId) {
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // Trackear evento en Tracardi
-    trackOfertaEvent('offer-view', {
+    // Disparar evento de segmentación específico según la categoría de la oferta
+    const segEvent = getCategorySegmentationEvent(oferta.categoria) || 'offer-view';
+    trackOfertaEvent(segEvent, {
       offer_id: oferta.id,
       title: oferta.titulo,
       category: oferta.categoria,
@@ -522,7 +544,8 @@ function viewOfferDetail(offerId) {
       discount_percentage: oferta.descuento_porcentaje,
       coupon_code: oferta.codigo_cupon,
       expiration_date: oferta.fecha_expiracion,
-      offer_type: oferta.tipo_oferta
+      offer_type: oferta.tipo_oferta,
+      action: 'offer_detail_view'
     }, true);
   }
 }
