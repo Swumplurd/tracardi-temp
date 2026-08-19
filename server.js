@@ -61,6 +61,54 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
+// Offers catalog data
+let ofertasData = null;
+try {
+  ofertasData = require('./ofertas.json');
+} catch (e) {
+  console.error('Error cargando ofertas.json:', e.message);
+}
+
+// Endpoint para servir ofertas.json directamente como fallback estático
+app.get('/ofertas.json', (req, res) => {
+  res.sendFile(path.join(__dirname, 'ofertas.json'));
+});
+
+// Endpoint para catálogo de ofertas con filtro opcional de categoría
+app.get('/api/ofertas', (req, res) => {
+  if (!ofertasData) {
+    return res.status(500).json({ error: 'Catálogo de ofertas no disponible' });
+  }
+
+  const { categoria } = req.query;
+  let filtradas = ofertasData.ofertas || [];
+
+  if (categoria && categoria !== 'all' && categoria !== 'todas') {
+    filtradas = filtradas.filter(o => o.categoria.toLowerCase() === categoria.toLowerCase());
+  }
+
+  res.json({
+    total: filtradas.length,
+    total_catalogo: ofertasData.total_ofertas,
+    categorias: ofertasData.categorias,
+    ofertas: filtradas
+  });
+});
+
+// Endpoint para detalle de oferta por ID
+app.get('/api/ofertas/:id', (req, res) => {
+  if (!ofertasData) {
+    return res.status(500).json({ error: 'Catálogo de ofertas no disponible' });
+  }
+
+  const oferta = ofertasData.ofertas.find(o => o.id === req.params.id);
+  if (!oferta) {
+    return res.status(404).json({ error: 'Oferta no encontrada' });
+  }
+
+  res.json(oferta);
+});
+
 // Example 1: Node.js Server-Side Tracking Endpoint
 app.post('/api/track-backend', async (req, res) => {
   const { eventType, profileId, sessionId, properties } = req.body;

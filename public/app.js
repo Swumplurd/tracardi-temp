@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   initTabs();
   checkHealth();
+  loadOfertas();
 });
 
 // Check Server & Tracardi Health
@@ -294,4 +295,343 @@ function showToast(message, type = 'info') {
   setTimeout(() => {
     toast.remove();
   }, 3500);
+}
+
+// ==========================================
+// SECCIÓN: DEMO OFERTAS & DETALLE DE OFERTA
+// ==========================================
+
+let ofertasList = [];
+let activeOfertaCategory = 'all';
+
+// Cargar catálogo de ofertas desde la API
+async function loadOfertas() {
+  const countBadge = document.getElementById('ofertas-count-badge');
+  try {
+    const res = await fetch('/api/ofertas');
+    if (!res.ok) throw new Error(`HTTP ${res.status} al cargar /api/ofertas`);
+    const data = await res.json();
+    ofertasList = data.ofertas || [];
+    renderOfertas();
+  } catch (err) {
+    console.warn('Fallo cargando /api/ofertas, intentando fallback /ofertas.json:', err);
+    try {
+      const fallbackRes = await fetch('/ofertas.json');
+      if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status} al cargar /ofertas.json`);
+      const fallbackData = await fallbackRes.json();
+      ofertasList = fallbackData.ofertas || [];
+      renderOfertas();
+    } catch (e2) {
+      console.error('Error total al cargar ofertas:', e2);
+      if (countBadge) countBadge.textContent = 'Error cargando ofertas';
+      showToast('❌ No se pudo cargar el catálogo de ofertas', 'error');
+    }
+  }
+}
+
+// Filtrar ofertas por categoría
+function filterOfertas(category) {
+  activeOfertaCategory = category;
+
+  // Actualizar estado activo en botones de filtro
+  document.querySelectorAll('.oferta-filter-btn').forEach(btn => {
+    if (btn.getAttribute('data-category') === category) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  renderOfertas();
+
+  // Rastrear filtro en Tracardi
+  trackOfertaEvent('category-filter', {
+    category: category,
+    filter_time: new Date().toISOString()
+  }, false);
+}
+
+// Renderizar la lista de ofertas según el filtro activo
+function renderOfertas() {
+  const grid = document.getElementById('ofertas-grid');
+  const countBadge = document.getElementById('ofertas-count-badge');
+  if (!grid) return;
+
+  const filtered = activeOfertaCategory === 'all'
+    ? ofertasList
+    : ofertasList.filter(o => o.categoria.toLowerCase() === activeOfertaCategory.toLowerCase());
+
+  if (countBadge) {
+    countBadge.textContent = `Mostrando ${filtered.length} ofertas`;
+  }
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column: 1 / -1; padding: 3rem 1rem;">
+        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
+        <h3>No se encontraron ofertas</h3>
+        <p>No hay promociones disponibles en la categoría seleccionada.</p>
+        <button class="btn btn-blue" style="margin-top: 1rem;" onclick="filterOfertas('all')">Ver todas las ofertas</button>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(oferta => {
+    const icon = getCategoryIcon(oferta.categoria);
+    const catUpper = oferta.categoria.toUpperCase();
+
+    return `
+      <div class="oferta-card" data-id="${escapeHtml(oferta.id)}">
+        <div class="oferta-card-header">
+          <span class="oferta-badge-cat cat-${escapeHtml(oferta.categoria)}">${icon} ${catUpper}</span>
+          <span class="oferta-badge-discount">-${oferta.descuento_porcentaje}% OFF</span>
+        </div>
+
+        <h3 class="oferta-card-title">${escapeHtml(oferta.titulo)}</h3>
+
+        <div class="oferta-store">
+          <span class="store-icon">🏪</span>
+          <span class="store-name">${escapeHtml(oferta.establecimiento)}</span>
+        </div>
+
+        <p class="oferta-summary">${escapeHtml(oferta.descripcion)}</p>
+
+        <div class="oferta-card-footer">
+          <div class="oferta-price-box">
+            <span class="oferta-price-current">$${oferta.precio_oferta.toFixed(2)} <small>${escapeHtml(oferta.moneda)}</small></span>
+            <span class="oferta-price-original">$${oferta.precio_original.toFixed(2)}</span>
+          </div>
+          <button class="btn btn-sm btn-blue btn-ver-detalle" onclick="viewOfferDetail('${escapeHtml(oferta.id)}')">
+            Ver Detalle →
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Ver detalle completo de una oferta seleccionada
+function viewOfferDetail(offerId) {
+  const oferta = ofertasList.find(o => o.id === offerId);
+  if (!oferta) {
+    showToast('Oferta no encontrada', 'error');
+    return;
+  }
+
+  const catalogView = document.getElementById('ofertas-catalog-view');
+  const detailView = document.getElementById('ofertas-detail-view');
+  const detailCard = document.getElementById('oferta-detail-card');
+
+  if (catalogView && detailView && detailCard) {
+    catalogView.style.display = 'none';
+    detailView.style.display = 'block';
+
+    const icon = getCategoryIcon(oferta.categoria);
+    const ahorro = (oferta.precio_original - oferta.precio_oferta).toFixed(2);
+
+    detailCard.innerHTML = `
+      <div class="detail-header-section">
+        <div class="detail-top-badges">
+          <span class="oferta-badge-cat cat-${escapeHtml(oferta.categoria)}">${icon} ${escapeHtml(oferta.categoria.toUpperCase())}</span>
+          <span class="oferta-badge-discount">-${oferta.descuento_porcentaje}% DESCUENTO</span>
+          <span class="badge badge-purple">ID: ${escapeHtml(oferta.id)}</span>
+        </div>
+        <h1 class="detail-title">${escapeHtml(oferta.titulo)}</h1>
+        <div class="detail-store">
+          <span class="store-icon">🏪</span>
+          <span class="store-name">Establecimiento: <strong>${escapeHtml(oferta.establecimiento)}</strong></span>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="detail-body-grid">
+        <div class="detail-main-info">
+          <h3 style="margin-bottom: 0.5rem; font-size: 1.1rem; color: var(--text-main);">Descripción de la Promoción</h3>
+          <p class="detail-description">${escapeHtml(oferta.descripcion)}</p>
+
+          <div class="detail-meta-grid">
+            <div class="meta-item">
+              <span class="meta-label">🏷️ Tipo de Oferta</span>
+              <span class="meta-value">${escapeHtml(oferta.tipo_oferta)}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">📅 Fecha de Expiración</span>
+              <span class="meta-value">${escapeHtml(oferta.fecha_expiracion)}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">💳 Moneda</span>
+              <span class="meta-value">${escapeHtml(oferta.moneda)}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">📉 Ahorro Total</span>
+              <span class="meta-value" style="color: var(--accent-green);">
+                $${ahorro} (${oferta.descuento_porcentaje}%)
+              </span>
+            </div>
+          </div>
+
+          <!-- Cupón de descuento -->
+          <div class="coupon-box">
+            <div class="coupon-info">
+              <span class="coupon-label">🎟️ CÓDIGO DE CUPÓN EXCLUSIVO</span>
+              <div class="coupon-code" id="active-coupon-code">${escapeHtml(oferta.codigo_cupon)}</div>
+            </div>
+            <button class="btn btn-amber btn-copy-coupon" onclick="copyCouponCode('${escapeHtml(oferta.codigo_cupon)}')">
+              📋 Copiar Cupón
+            </button>
+          </div>
+        </div>
+
+        <!-- Sidebar de Precios y Acción -->
+        <div class="detail-price-sidebar">
+          <div class="price-highlight-card">
+            <div class="price-header-label">Precio Especial Demo</div>
+            <div class="price-main-display">
+              $${oferta.precio_oferta.toFixed(2)}
+              <span class="price-currency">${escapeHtml(oferta.moneda)}</span>
+            </div>
+            <div class="price-original-display">
+              Precio regular: <del>$${oferta.precio_original.toFixed(2)} ${escapeHtml(oferta.moneda)}</del>
+            </div>
+            <div class="price-savings-tag">
+              ✨ ¡Ahorras $${ahorro} USD!
+            </div>
+
+            <div class="divider" style="margin: 1.2rem 0;"></div>
+
+            <button class="btn btn-green btn-full-width" onclick="trackOfferInteraction('${escapeHtml(oferta.id)}', 'offer-redeem')">
+              ⚡ Simular Canje de Oferta (Track)
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Trackear evento en Tracardi
+    trackOfertaEvent('offer-view', {
+      offer_id: oferta.id,
+      title: oferta.titulo,
+      category: oferta.categoria,
+      store: oferta.establecimiento,
+      price_original: oferta.precio_original,
+      price_offer: oferta.precio_oferta,
+      discount_percentage: oferta.descuento_porcentaje,
+      coupon_code: oferta.codigo_cupon,
+      expiration_date: oferta.fecha_expiracion,
+      offer_type: oferta.tipo_oferta
+    }, true);
+  }
+}
+
+// Regresar al catálogo principal desde la vista de detalle
+function backToCatalog() {
+  const catalogView = document.getElementById('ofertas-catalog-view');
+  const detailView = document.getElementById('ofertas-detail-view');
+  if (catalogView && detailView) {
+    detailView.style.display = 'none';
+    catalogView.style.display = 'block';
+  }
+}
+
+// Copiar código de cupón
+function copyCouponCode(code) {
+  navigator.clipboard.writeText(code).then(() => {
+    showToast(`📋 Cupón '${code}' copiado al portapapeles!`, 'success');
+  }).catch(() => {
+    showToast(`Cupón: ${code}`);
+  });
+}
+
+// Helper para enviar eventos de ofertas a Tracardi
+async function trackOfertaEvent(eventType, properties = {}, showNotification = true) {
+  const payload = {
+    source: { id: SOURCE_ID },
+    session: { id: currentSessionId },
+    profile: currentProfileId ? { id: currentProfileId } : null,
+    events: [
+      {
+        type: eventType,
+        properties: properties
+      }
+    ]
+  };
+
+  const payloadBlock = document.getElementById('payload-json');
+  if (payloadBlock) {
+    payloadBlock.textContent = JSON.stringify(payload, null, 2);
+  }
+
+  try {
+    const res = await fetch(`${TRACARDI_API}/track`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await res.json();
+
+    if (result.profile && result.profile.id) {
+      currentProfileId = result.profile.id;
+      localStorage.setItem('tracardi_profile_id', currentProfileId);
+      const profInput = document.getElementById('profile-id');
+      if (profInput) profInput.value = currentProfileId;
+    }
+
+    const respBlock = document.getElementById('response-json');
+    if (respBlock) {
+      respBlock.textContent = JSON.stringify(result, null, 2);
+    }
+
+    addLogHistory(eventType, result);
+
+    if (showNotification) {
+      showToast(`🎯 Evento '${eventType}' registrado en Tracardi!`, 'success');
+    }
+  } catch (err) {
+    console.log(`Error enviando evento ${eventType} a Tracardi:`, err.message);
+  }
+}
+
+// Simular interacción o canje de oferta
+function trackOfferInteraction(offerId, actionType) {
+  const oferta = ofertasList.find(o => o.id === offerId);
+  if (!oferta) return;
+
+  trackOfertaEvent(actionType || 'offer-redeem', {
+    offer_id: oferta.id,
+    title: oferta.titulo,
+    category: oferta.categoria,
+    store: oferta.establecimiento,
+    price: oferta.precio_oferta,
+    coupon: oferta.codigo_cupon,
+    redeemed_at: new Date().toISOString()
+  }, true);
+
+  showToast(`🎉 ¡Oferta '${oferta.titulo}' canjeada en simulación!`, 'success');
+}
+
+// Helpers de utilidades
+function getCategoryIcon(cat) {
+  const icons = {
+    comida: '🍔',
+    electronica: '💻',
+    cine: '🎬',
+    ropa: '👕',
+    online: '🌐'
+  };
+  return icons[cat ? cat.toLowerCase() : ''] || '🏷️';
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }

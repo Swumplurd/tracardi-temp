@@ -39,6 +39,9 @@
       <button class="tab-btn active" data-tab="sandbox-tab">
         ⚡ Simulador de Eventos (Frontend)
       </button>
+      <button class="tab-btn" data-tab="ofertas-tab">
+        🏷️ Demo Ofertas
+      </button>
       <button class="tab-btn" data-tab="backend-tab">
         🖥️ Eventos Servidor a Servidor (Backend)
       </button>
@@ -456,6 +459,65 @@ curl -X POST "http://localhost:8686/collect/payment-success/demo-webhook-source/
           <li>Ve a <strong>Profiles</strong> para ver los perfiles creados y cómo se actualizan los datos demográficos y de comportamiento.</li>
           <li>Ve a <strong>Flows</strong> para diseñar reglas automatizadas.</li>
         </ol>
+      </div>
+    </section>
+
+    <!-- TAB 5: DEMO OFERTAS -->
+    <section id="ofertas-tab" class="tab-content">
+      <!-- Vista 1: Catálogo de Ofertas -->
+      <div id="ofertas-catalog-view">
+        <div class="card shadow" style="margin-bottom: 1.5rem;">
+          <div class="card-header">
+            <div>
+              <h2>🏷️ Catálogo Demo Ofertas</h2>
+              <p class="subtitle" style="margin-top: 0.3rem;">Explora promociones vigentes con descuentos exclusivos y rastreo en tiempo real en Tracardi CDP</p>
+            </div>
+            <span id="ofertas-count-badge" class="badge badge-purple">Cargando ofertas...</span>
+          </div>
+
+          <!-- Filtros de categoría -->
+          <div class="ofertas-filters-container">
+            <span class="filter-label">Filtrar por categoría:</span>
+            <div class="oferta-categories-pills">
+              <button class="oferta-filter-btn active" data-category="all" onclick="filterOfertas('all')">
+                ✨ Todas
+              </button>
+              <button class="oferta-filter-btn" data-category="comida" onclick="filterOfertas('comida')">
+                🍔 Comida
+              </button>
+              <button class="oferta-filter-btn" data-category="electronica" onclick="filterOfertas('electronica')">
+                💻 Electrónica
+              </button>
+              <button class="oferta-filter-btn" data-category="cine" onclick="filterOfertas('cine')">
+                🎬 Cine
+              </button>
+              <button class="oferta-filter-btn" data-category="ropa" onclick="filterOfertas('ropa')">
+                👕 Ropa
+              </button>
+              <button class="oferta-filter-btn" data-category="online" onclick="filterOfertas('online')">
+                🌐 Online
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grid de ofertas -->
+        <div id="ofertas-grid" class="ofertas-grid">
+          <!-- Las tarjetas de oferta se renderizan dinámicamente -->
+        </div>
+      </div>
+
+      <!-- Vista 2: Detalle de Oferta Seleccionada -->
+      <div id="ofertas-detail-view" style="display: none;">
+        <div class="detail-actions-bar" style="margin-bottom: 1.5rem;">
+          <button id="btn-back-to-catalog" class="btn btn-outline" onclick="backToCatalog()">
+            ← Volver al Catálogo de Ofertas
+          </button>
+        </div>
+
+        <div id="oferta-detail-card" class="card shadow">
+          <!-- El contenido detallado se renderiza dinámicamente -->
+        </div>
       </div>
     </section>
 
