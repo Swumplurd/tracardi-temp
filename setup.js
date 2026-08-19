@@ -75,13 +75,38 @@ async function setup() {
       'Content-Type': 'application/json'
     };
 
-    // Check existing sources
-    const sourcesRes = await request(`${TRACARDI_API}/event-sources`, { headers });
+    // 1. Fetch Bridges dynamically to get proper IDs across Tracardi versions (0.8.x, 1.x)
+    let restBridgeId = '778ded05-4ff3-4e08-9a86-72c0195fa95d';
+    let webhookBridgeId = '3d8bb87e-28d1-4a38-b19c-d0c1fbb71e22';
+
+    try {
+      const bridgesRes = await request(`${TRACARDI_API}/bridges`, { headers });
+      if (bridgesRes.statusCode === 200 && bridgesRes.body.result) {
+        const bridges = bridgesRes.body.result;
+        const foundRest = bridges.find(b => b.type === 'rest');
+        const foundWebhook = bridges.find(b => b.type === 'webhook');
+        if (foundRest) restBridgeId = foundRest.id;
+        if (foundWebhook) webhookBridgeId = foundWebhook.id;
+      }
+    } catch (e) {
+      console.warn('⚠️ No se pudieron consultar los bridges automáticamente, usando IDs estándar.');
+    }
+
+    // 2. Check existing event sources
     let existingSources = [];
+    const sourcesRes = await request(`${TRACARDI_API}/event-sources/by_type`, { headers });
     if (sourcesRes.statusCode === 200 && sourcesRes.body.grouped) {
       const groups = sourcesRes.body.grouped;
       for (const key in groups) {
         existingSources.push(...groups[key]);
+      }
+    } else {
+      // Fallback for other versions
+      const fallbackRes = await request(`${TRACARDI_API}/event-sources`, { headers });
+      if (fallbackRes.statusCode === 200 && fallbackRes.body.grouped) {
+        for (const key in fallbackRes.body.grouped) {
+          existingSources.push(...fallbackRes.body.grouped[key]);
+        }
       }
     }
 
@@ -90,40 +115,64 @@ async function setup() {
 
     if (!hasDemoSource) {
       console.log('➕ Creando Event Source REST: "demo-source"...');
-      await request(`${TRACARDI_API}/event-source`, { method: 'POST', headers }, {
+      const createRes = await request(`${TRACARDI_API}/event-source`, { method: 'POST', headers }, {
         id: 'demo-source',
         name: 'Demo Web App',
         description: 'Fuente de eventos REST / JS para la demo local',
         type: ['rest'],
-        bridge: { id: 'e72f3216-aa4e-2a56-c172-9fe1f34d7fde', name: 'REST API Bridge' },
+        bridge: { id: restBridgeId, name: 'REST API Bridge' },
         timestamp: new Date().toISOString(),
         enabled: true,
+        channel: 'Web',
+        transitional: false,
         tags: ['demo', 'web', 'rest'],
-        groups: [],
+        groups: ['Web'],
+        returns_profile: true,
+        permanent_profile_id: true,
+        requires_consent: false,
+        manual: null,
+        locked: false,
+        synchronize_profiles: true,
         config: {}
       });
-      console.log('✅ Event Source "demo-source" creado exitosamente.');
+      if (createRes.statusCode === 200) {
+        console.log('✅ Event Source "demo-source" creado exitosamente.');
+      } else {
+        console.warn('⚠️ Error al crear "demo-source":', createRes.body);
+      }
     } else {
-      console.log('✅ Event Source "demo-source" ya existe.');
+      console.log('✅ Event Source "demo-source" ya existe y está activo.');
     }
 
     if (!hasWebhookSource) {
       console.log('➕ Creando Event Source Webhook: "demo-webhook-source"...');
-      await request(`${TRACARDI_API}/event-source`, { method: 'POST', headers }, {
+      const createRes = await request(`${TRACARDI_API}/event-source`, { method: 'POST', headers }, {
         id: 'demo-webhook-source',
         name: 'Demo Webhook Collector',
         description: 'Fuente de eventos Webhook para recolección directa servidor a servidor',
         type: ['webhook'],
-        bridge: { id: 'd69b1c05-74d7-22fe-dbef-92a1f831e975', name: 'Webhook API Bridge' },
+        bridge: { id: webhookBridgeId, name: 'Webhook API Bridge' },
         timestamp: new Date().toISOString(),
         enabled: true,
+        channel: 'Webhook',
+        transitional: false,
         tags: ['demo', 'webhook'],
-        groups: [],
+        groups: ['Webhook'],
+        returns_profile: true,
+        permanent_profile_id: true,
+        requires_consent: false,
+        manual: null,
+        locked: false,
+        synchronize_profiles: true,
         config: {}
       });
-      console.log('✅ Event Source "demo-webhook-source" creado exitosamente.');
+      if (createRes.statusCode === 200) {
+        console.log('✅ Event Source "demo-webhook-source" creado exitosamente.');
+      } else {
+        console.warn('⚠️ Error al crear "demo-webhook-source":', createRes.body);
+      }
     } else {
-      console.log('✅ Event Source "demo-webhook-source" ya existe.');
+      console.log('✅ Event Source "demo-webhook-source" ya existe y está activo.');
     }
   }
 
