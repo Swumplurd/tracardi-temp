@@ -4,7 +4,7 @@ const http = require('http');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3500;
 const TRACARDI_API = process.env.TRACARDI_API || 'http://localhost:8686';
 
 app.use(cors());

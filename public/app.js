@@ -533,7 +533,7 @@ function viewOfferDetail(offerId) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     // Disparar evento de segmentación específico según la categoría de la oferta
-    const segEvent = getCategorySegmentationEvent(oferta.categoria) || 'offer-view';
+    const segEvent = 'offer-view';
     trackOfertaEvent(segEvent, {
       offer_id: oferta.id,
       title: oferta.titulo,
