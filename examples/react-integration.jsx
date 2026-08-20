@@ -15,6 +15,7 @@ export function useTracardi({ apiHost = 'http://localhost:8686', sourceId = 'dem
   });
 
   const [profileId, setProfileId] = useState(() => localStorage.getItem('tracardi_profile_id'));
+  const [interests, setInterests] = useState({});
 
   const track = useCallback(async (eventType, properties = {}) => {
     const payload = {
@@ -40,6 +41,9 @@ export function useTracardi({ apiHost = 'http://localhost:8686', sourceId = 'dem
         setProfileId(data.profile.id);
         localStorage.setItem('tracardi_profile_id', data.profile.id);
       }
+      if (data?.profile?.interests) {
+        setInterests(data.profile.interests);
+      }
       return data;
     } catch (err) {
       console.error('Error tracking Tracardi event:', err);
@@ -47,14 +51,14 @@ export function useTracardi({ apiHost = 'http://localhost:8686', sourceId = 'dem
     }
   }, [apiHost, sourceId, sessionId, profileId]);
 
-  return { track, sessionId, profileId };
+  return { track, sessionId, profileId, interests };
 }
 
 /**
  * Componente de Ejemplo React
  */
 export function TracardiDemoComponent() {
-  const { track, sessionId, profileId } = useTracardi();
+  const { track, sessionId, profileId, interests } = useTracardi();
   const [lastResponse, setLastResponse] = useState(null);
 
   useEffect(() => {
@@ -76,6 +80,7 @@ export function TracardiDemoComponent() {
       <h2>⚛️ Componente React con Tracardi</h2>
       <p>Session ID: <code>{sessionId}</code></p>
       <p>Profile ID: <code>{profileId || 'Anónimo'}</code></p>
+      <p>Intereses: <code>{JSON.stringify(interests)}</code></p>
 
       <button onClick={handlePurchase} style={{ padding: '10px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
         🛒 Simular Compra en React

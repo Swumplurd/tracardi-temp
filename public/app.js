@@ -15,7 +15,8 @@ let eventHistory = [];
 // Personas Predefinidas
 const personas = {
   ana: { name: 'Ana Lopez', email: 'ana.lopez@ejemplo.com', role: 'Cliente SaaS' },
-  carlos: { name: 'Carlos Gomez', email: 'carlos.gomez' }
+  carlos: { name: 'Carlos Gomez', email: 'carlos.gomez@ejemplo.com', role: 'Cliente VIP' },
+  anon: { name: '', email: '', role: 'Anónimo' }
 };
 
 // DOM Initializer
@@ -69,10 +70,43 @@ function selectPersona(key) {
   document.querySelectorAll('.persona-chip').forEach(c => c.classList.remove('active'));
   event.target.classList.add('active');
 
-  const p = personas[key];
+  const p = personas[key] || { name: '', email: '' };
   document.getElementById('user-name').value = p.name;
   document.getElementById('user-email').value = p.email;
+  
+  currentSessionId = 'sess_' + key + '_' + Math.random().toString(36).substring(2, 7);
+  localStorage.setItem('tracardi_session_id', currentSessionId);
+  document.getElementById('session-id').value = currentSessionId;
+
+  currentProfileId = '';
+  localStorage.removeItem('tracardi_profile_id');
+  document.getElementById('profile-id').value = 'Se generará al enviar el 1er evento';
+  updateProfileInterests({});
+
   showToast(`Persona cargada: ${p.name || 'Anónimo'}`);
+}
+
+// Renderizar intereses del perfil en la UI
+function updateProfileInterests(interests) {
+  const container = document.getElementById('profile-interests-container');
+  if (!container) return;
+
+  if (!interests || typeof interests !== 'object' || Object.keys(interests).length === 0) {
+    container.innerHTML = '<span class="interests-empty">Sin intereses registrados aún</span>';
+    return;
+  }
+
+  const entries = Object.entries(interests);
+  container.innerHTML = entries.map(([key, val]) => {
+    const icon = getCategoryIcon(key);
+    const score = typeof val === 'number' ? val.toFixed(1) : escapeHtml(val);
+    return `
+      <span class="interest-tag" title="Interés: ${escapeHtml(key)} (${score})">
+        <span>${icon} ${escapeHtml(key)}</span>
+        <span class="interest-score">${score}</span>
+      </span>
+    `;
+  }).join('');
 }
 
 // Inspector View Tabs (Payload / Response / History)
@@ -172,11 +206,16 @@ async function triggerEvent(eventType) {
 
     const result = await res.json();
 
-    // Store Profile ID if returned
-    if (result.profile && result.profile.id) {
-      currentProfileId = result.profile.id;
-      localStorage.setItem('tracardi_profile_id', currentProfileId);
-      document.getElementById('profile-id').value = currentProfileId;
+    // Store Profile ID and Interests if returned
+    if (result.profile) {
+      if (result.profile.id) {
+        currentProfileId = result.profile.id;
+        localStorage.setItem('tracardi_profile_id', currentProfileId);
+        document.getElementById('profile-id').value = currentProfileId;
+      }
+      if (result.profile.interests !== undefined) {
+        updateProfileInterests(result.profile.interests);
+      }
     }
 
     // Update Inspector Response Tab
@@ -597,11 +636,16 @@ async function trackOfertaEvent(eventType, properties = {}, showNotification = t
 
     const result = await res.json();
 
-    if (result.profile && result.profile.id) {
-      currentProfileId = result.profile.id;
-      localStorage.setItem('tracardi_profile_id', currentProfileId);
-      const profInput = document.getElementById('profile-id');
-      if (profInput) profInput.value = currentProfileId;
+    if (result.profile) {
+      if (result.profile.id) {
+        currentProfileId = result.profile.id;
+        localStorage.setItem('tracardi_profile_id', currentProfileId);
+        const profInput = document.getElementById('profile-id');
+        if (profInput) profInput.value = currentProfileId;
+      }
+      if (result.profile.interests !== undefined) {
+        updateProfileInterests(result.profile.interests);
+      }
     }
 
     const respBlock = document.getElementById('response-json');

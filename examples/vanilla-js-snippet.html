@@ -63,6 +63,7 @@
         if (result.profile && result.profile.id) {
           profileId = result.profile.id;
           localStorage.setItem('tracardi_profile_id', profileId);
+          // result.profile.interests contiene los intereses calculados por Tracardi (ej: { comida: 12.0, electronica: 3.0 })
         }
 
         document.getElementById('output').textContent = JSON.stringify({

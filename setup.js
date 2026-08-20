@@ -1,8 +1,47 @@
 const http = require('http');
+const { execSync } = require('child_process');
 
 const TRACARDI_API = process.env.TRACARDI_API || 'http://localhost:8686';
 const ADMIN_USER = process.env.TRACARDI_USER || 'swumplurd@gmail.com';
 const ADMIN_PASS = process.env.TRACARDI_PASS || '123456';
+
+function ensureTracardiInterestsPatch() {
+  try {
+    const checkCmd = `docker exec tracardi-api python3 -c "
+path = '/usr/local/lib/python3.10/site-packages/tracardi/service/tracking_manager.py'
+with open(path, 'r') as f:
+    content = f.read()
+if '\"interests\": self.profile.interests' not in content:
+    target = '''        if self.profile:
+            body[\\\"profile\\\"] = {
+                \\\"id\\\": self.profile.id
+            }'''
+    replacement = '''        if self.profile:
+            body[\\\"profile\\\"] = {
+                \\\"id\\\": self.profile.id,
+                \\\"interests\\\": self.profile.interests if self.profile.interests is not None else {}
+            }'''
+    if target in content:
+        with open(path, 'w') as f:
+            f.write(content.replace(target, replacement, 1))
+        import os
+        os.system('kill -HUP 1')
+        print('PATCH_APPLIED')
+    else:
+        print('TARGET_NOT_FOUND')
+else:
+    print('ALREADY_PATCHED')
+"`;
+    const res = execSync(checkCmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+    if (res.includes('PATCH_APPLIED')) {
+      console.log('✅ Parche de intereses en Tracardi API aplicado y workers recargados.');
+    } else if (res.includes('ALREADY_PATCHED')) {
+      console.log('✅ Tracardi API ya está configurado para devolver intereses del perfil.');
+    }
+  } catch (err) {
+    // Docker no disponible o contenedor remoto, ignorar silenciosamente
+  }
+}
 
 function request(url, options = {}, data = null) {
   return new Promise((resolve, reject) => {
@@ -49,6 +88,8 @@ async function setup() {
     console.error(`❌ No se pudo conectar a Tracardi en ${TRACARDI_API}. Asegúrate de que los contenedores estén corriendo.`);
     process.exit(1);
   }
+
+  ensureTracardiInterestsPatch();
 
   console.log(`🔑 Autenticando con usuario admin (${ADMIN_USER})...`);
   let token = '';

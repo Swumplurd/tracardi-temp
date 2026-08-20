@@ -154,9 +154,11 @@ async function sendTracardiEvent(eventType, properties = {}) {
 
   const result = await response.json();
   
-  // Guardar Profile ID retornado por Tracardi
+  // Guardar Profile ID retornado por Tracardi y consultar intereses
   if (result.profile && result.profile.id) {
     localStorage.setItem("tracardi_profile_id", result.profile.id);
+    // result.profile.interests contiene el mapa de intereses acumulados (ej: { comida: 12.0, electronica: 3.0 })
+    console.log("Intereses del usuario:", result.profile.interests);
   }
   return result;
 }
