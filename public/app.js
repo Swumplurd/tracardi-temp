@@ -10,6 +10,16 @@ if (!currentSessionId) {
 }
 
 let currentProfileId = localStorage.getItem('tracardi_profile_id') || '';
+let currentInterests = {};
+try {
+  const savedInterests = localStorage.getItem('tracardi_profile_interests');
+  if (savedInterests) {
+    currentInterests = JSON.parse(savedInterests);
+  }
+} catch (e) {
+  currentInterests = {};
+}
+
 let eventHistory = [];
 
 // Personas Predefinidas
@@ -26,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   initTabs();
   checkHealth();
+  updateProfileInterests(currentInterests);
   loadOfertas();
 });
 
@@ -61,6 +72,9 @@ function initTabs() {
       btn.classList.add('active');
       const targetId = btn.getAttribute('data-tab');
       document.getElementById(targetId).classList.add('active');
+      if (targetId === 'ofertas-tab') {
+        renderOfertas();
+      }
     });
   });
 }
@@ -81,32 +95,61 @@ function selectPersona(key) {
   currentProfileId = '';
   localStorage.removeItem('tracardi_profile_id');
   document.getElementById('profile-id').value = 'Se generará al enviar el 1er evento';
+  
+  currentInterests = {};
+  localStorage.removeItem('tracardi_profile_interests');
   updateProfileInterests({});
 
   showToast(`Persona cargada: ${p.name || 'Anónimo'}`);
 }
 
-// Renderizar intereses del perfil en la UI
-function updateProfileInterests(interests) {
-  const container = document.getElementById('profile-interests-container');
-  if (!container) return;
+// Helper para obtener puntaje de interés normalizado por categoría
+function getInterestScore(category) {
+  if (!currentInterests || typeof currentInterests !== 'object') return 0;
+  const cat = (category || '').toLowerCase().trim();
+  for (const [key, val] of Object.entries(currentInterests)) {
+    if (key.toLowerCase().trim() === cat) {
+      const num = typeof val === 'number' ? val : parseFloat(val);
+      return isNaN(num) ? 0 : num;
+    }
+  }
+  return 0;
+}
 
-  if (!interests || typeof interests !== 'object' || Object.keys(interests).length === 0) {
-    container.innerHTML = '<span class="interests-empty">Sin intereses registrados aún</span>';
-    return;
+// Renderizar intereses del perfil en la UI y sincronizar catálogo
+function updateProfileInterests(interests) {
+  currentInterests = (interests && typeof interests === 'object') ? interests : {};
+  try {
+    if (Object.keys(currentInterests).length > 0) {
+      localStorage.setItem('tracardi_profile_interests', JSON.stringify(currentInterests));
+    } else {
+      localStorage.removeItem('tracardi_profile_interests');
+    }
+  } catch (e) {}
+
+  const container = document.getElementById('profile-interests-container');
+  if (container) {
+    if (Object.keys(currentInterests).length === 0) {
+      container.innerHTML = '<span class="interests-empty">Sin intereses registrados aún</span>';
+    } else {
+      const entries = Object.entries(currentInterests);
+      container.innerHTML = entries.map(([key, val]) => {
+        const icon = getCategoryIcon(key);
+        const score = typeof val === 'number' ? val.toFixed(1) : escapeHtml(val);
+        return `
+          <span class="interest-tag" title="Interés: ${escapeHtml(key)} (${score})">
+            <span>${icon} ${escapeHtml(key)}</span>
+            <span class="interest-score">${score}</span>
+          </span>
+        `;
+      }).join('');
+    }
   }
 
-  const entries = Object.entries(interests);
-  container.innerHTML = entries.map(([key, val]) => {
-    const icon = getCategoryIcon(key);
-    const score = typeof val === 'number' ? val.toFixed(1) : escapeHtml(val);
-    return `
-      <span class="interest-tag" title="Interés: ${escapeHtml(key)} (${score})">
-        <span>${icon} ${escapeHtml(key)}</span>
-        <span class="interest-score">${score}</span>
-      </span>
-    `;
-  }).join('');
+  // Refrescar catálogo de ofertas para reflejar inmediatamente el nuevo orden y filtrado
+  if (ofertasList && ofertasList.length > 0) {
+    renderOfertas();
+  }
 }
 
 // Inspector View Tabs (Payload / Response / History)
@@ -279,6 +322,17 @@ async function testBackendTrack() {
     })
   });
   const data = await res.json();
+  if (data.tracardiResponse && data.tracardiResponse.profile) {
+    if (data.tracardiResponse.profile.id) {
+      currentProfileId = data.tracardiResponse.profile.id;
+      localStorage.setItem('tracardi_profile_id', currentProfileId);
+      const profInput = document.getElementById('profile-id');
+      if (profInput) profInput.value = currentProfileId;
+    }
+    if (data.tracardiResponse.profile.interests !== undefined) {
+      updateProfileInterests(data.tracardiResponse.profile.interests);
+    }
+  }
   document.getElementById('backend-status-label').textContent = 'POST /api/track-backend -> Tracardi /track';
   document.getElementById('backend-response-json').textContent = JSON.stringify(data, null, 2);
   showToast('✅ Respuesta recibida del servidor Node.js', 'success');
@@ -411,40 +465,83 @@ function filterOfertas(category) {
   }
 }
 
-// Renderizar la lista de ofertas según el filtro activo
+// Renderizar la lista de ofertas según el filtro activo y afinidad de intereses
 function renderOfertas() {
   const grid = document.getElementById('ofertas-grid');
   const countBadge = document.getElementById('ofertas-count-badge');
   if (!grid) return;
 
-  const filtered = activeOfertaCategory === 'all'
-    ? ofertasList
-    : ofertasList.filter(o => o.categoria.toLowerCase() === activeOfertaCategory.toLowerCase());
+  let filtered = [];
 
-  if (countBadge) {
-    countBadge.textContent = `Mostrando ${filtered.length} ofertas`;
-  }
+  if (activeOfertaCategory === 'all') {
+    // En la vista general "Todas":
+    // 1. Excluir ofertas cuya categoría tenga interés <= 1 o no figure en los intereses
+    // 2. Ordenar descendentemente según el peso de interés del usuario (mayor interés primero)
+    filtered = ofertasList
+      .filter(o => getInterestScore(o.categoria) > 1)
+      .sort((a, b) => {
+        const scoreA = getInterestScore(a.categoria);
+        const scoreB = getInterestScore(b.categoria);
+        return scoreB - scoreA;
+      });
 
-  if (filtered.length === 0) {
-    grid.innerHTML = `
-      <div class="empty-state" style="grid-column: 1 / -1; padding: 3rem 1rem;">
-        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
-        <h3>No se encontraron ofertas</h3>
-        <p>No hay promociones disponibles en la categoría seleccionada.</p>
-        <button class="btn btn-blue" style="margin-top: 1rem;" onclick="filterOfertas('all')">Ver todas las ofertas</button>
-      </div>
-    `;
-    return;
+    if (countBadge) {
+      countBadge.textContent = filtered.length > 0
+        ? `Mostrando ${filtered.length} ofertas personalizadas`
+        : '0 ofertas personalizadas';
+    }
+
+    if (filtered.length === 0) {
+      grid.innerHTML = `
+        <div class="empty-state personalized-empty-state" style="grid-column: 1 / -1; padding: 3rem 1.5rem; text-align: center;">
+          <div style="font-size: 3rem; margin-bottom: 0.75rem;">🎯</div>
+          <h3 style="font-size: 1.3rem; margin-bottom: 0.5rem; color: var(--text-main);">Sin recomendaciones personalizadas aún</h3>
+          <p style="color: var(--text-muted); max-width: 550px; margin: 0 auto 1.5rem auto; line-height: 1.5;">
+            En la vista general solo priorizamos ofertas según tus intereses registrados (afinidad &gt; 1.0).
+            Explora las categorías específicas o interactúa con ofertas para que Tracardi registre tus preferencias en tiempo real.
+          </p>
+          <div class="quick-category-suggestions" style="display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap;">
+            <button class="btn btn-sm btn-outline" onclick="filterOfertas('comida')">🍔 Comida</button>
+            <button class="btn btn-sm btn-outline" onclick="filterOfertas('electronica')">💻 Electrónica</button>
+            <button class="btn btn-sm btn-outline" onclick="filterOfertas('cine')">🎬 Cine</button>
+            <button class="btn btn-sm btn-outline" onclick="filterOfertas('ropa')">👕 Ropa</button>
+            <button class="btn btn-sm btn-outline" onclick="filterOfertas('online')">🌐 Online</button>
+          </div>
+        </div>
+      `;
+      return;
+    }
+  } else {
+    // Al filtrar por una categoría específica: mostrar todas las ofertas de la categoría sin exclusión
+    filtered = ofertasList.filter(o => o.categoria.toLowerCase() === activeOfertaCategory.toLowerCase());
+
+    if (countBadge) {
+      countBadge.textContent = `Mostrando ${filtered.length} ofertas`;
+    }
+
+    if (filtered.length === 0) {
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column: 1 / -1; padding: 3rem 1rem;">
+          <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
+          <h3>No se encontraron ofertas</h3>
+          <p>No hay promociones disponibles en la categoría seleccionada.</p>
+          <button class="btn btn-blue" style="margin-top: 1rem;" onclick="filterOfertas('all')">Ver todas las ofertas</button>
+        </div>
+      `;
+      return;
+    }
   }
 
   grid.innerHTML = filtered.map(oferta => {
     const icon = getCategoryIcon(oferta.categoria);
     const catUpper = oferta.categoria.toUpperCase();
+    const score = getInterestScore(oferta.categoria);
 
     return `
       <div class="oferta-card" data-id="${escapeHtml(oferta.id)}" onclick="viewOfferDetail('${escapeHtml(oferta.id)}')">
         <div class="oferta-card-header">
           <span class="oferta-badge-cat cat-${escapeHtml(oferta.categoria)}">${icon} ${catUpper}</span>
+          ${score > 1 ? `<span class="interest-tag" style="padding: 0.15rem 0.5rem; font-size: 0.72rem;" title="Afinidad de interés: ${score.toFixed(1)}">🎯 ${score.toFixed(1)}</span>` : ''}
           <span class="oferta-badge-discount">-${oferta.descuento_porcentaje}% OFF</span>
         </div>
 
@@ -489,11 +586,13 @@ function viewOfferDetail(offerId) {
 
     const icon = getCategoryIcon(oferta.categoria);
     const ahorro = (oferta.precio_original - oferta.precio_oferta).toFixed(2);
+    const score = getInterestScore(oferta.categoria);
 
     detailCard.innerHTML = `
       <div class="detail-header-section">
         <div class="detail-top-badges">
           <span class="oferta-badge-cat cat-${escapeHtml(oferta.categoria)}">${icon} ${escapeHtml(oferta.categoria.toUpperCase())}</span>
+          ${score > 1 ? `<span class="interest-tag" style="padding: 0.2rem 0.6rem; font-size: 0.8rem;">🎯 Afinidad: ${score.toFixed(1)}</span>` : ''}
           <span class="oferta-badge-discount">-${oferta.descuento_porcentaje}% DESCUENTO</span>
           <span class="badge badge-purple">ID: ${escapeHtml(oferta.id)}</span>
         </div>
