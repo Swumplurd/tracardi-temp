@@ -407,12 +407,22 @@ async function loadOfertas() {
     ofertasList = data.ofertas || [];
     renderOfertas();
   } catch (err) {
-    console.warn('Fallo cargando /api/ofertas, intentando fallback /ofertas.json:', err);
+    console.warn('Fallo cargando /api/ofertas, intentando fallback directo a http://localhost:1337/api/offers:', err);
     try {
-      const fallbackRes = await fetch('/ofertas.json');
-      if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status} al cargar /ofertas.json`);
+      const fallbackRes = await fetch('http://localhost:1337/api/offers?pagination[pageSize]=100');
+      if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status} al cargar API directa de ofertas`);
       const fallbackData = await fallbackRes.json();
-      ofertasList = fallbackData.ofertas || [];
+      const rawOffers = Array.isArray(fallbackData.data) ? fallbackData.data : (fallbackData.ofertas || []);
+      ofertasList = rawOffers.map(item => ({
+        ...item,
+        id: item.id_offer || item.documentId || String(item.id),
+        strapi_id: item.id,
+        documentId: item.documentId,
+        id_offer: item.id_offer || item.id,
+        precio_original: typeof item.precio_original === 'number' ? item.precio_original : parseFloat(item.precio_original) || 0,
+        precio_oferta: typeof item.precio_oferta === 'number' ? item.precio_oferta : parseFloat(item.precio_oferta) || 0,
+        descuento_porcentaje: typeof item.descuento_porcentaje === 'number' ? item.descuento_porcentaje : parseInt(item.descuento_porcentaje) || 0
+      }));
       renderOfertas();
     } catch (e2) {
       console.error('Error total al cargar ofertas:', e2);
@@ -570,7 +580,12 @@ function renderOfertas() {
 
 // Ver detalle completo de una oferta seleccionada
 function viewOfferDetail(offerId) {
-  const oferta = ofertasList.find(o => o.id === offerId);
+  const oferta = ofertasList.find(o =>
+    String(o.id) === String(offerId) ||
+    String(o.id_offer) === String(offerId) ||
+    String(o.documentId) === String(offerId) ||
+    String(o.strapi_id) === String(offerId)
+  );
   if (!oferta) {
     showToast('Oferta no encontrada', 'error');
     return;
@@ -764,7 +779,12 @@ async function trackOfertaEvent(eventType, properties = {}, showNotification = t
 
 // Simular interacción o canje de oferta
 function trackOfferInteraction(offerId, actionType) {
-  const oferta = ofertasList.find(o => o.id === offerId);
+  const oferta = ofertasList.find(o =>
+    String(o.id) === String(offerId) ||
+    String(o.id_offer) === String(offerId) ||
+    String(o.documentId) === String(offerId) ||
+    String(o.strapi_id) === String(offerId)
+  );
   if (!oferta) return;
 
   trackOfertaEvent(actionType || 'offer-redeem', {

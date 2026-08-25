@@ -6,6 +6,7 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const TRACARDI_API = process.env.TRACARDI_API || 'http://localhost:8686';
+const OFFERS_API = process.env.OFFERS_API || 'http://localhost:1337/api/offers';
 
 app.use(cors());
 app.use(express.json());
@@ -56,52 +57,113 @@ app.get('/api/health', async (req, res) => {
     demoServer: 'running',
     port: PORT,
     tracardiApi: TRACARDI_API,
+    offersApi: OFFERS_API,
     tracardiStatus: tracardiHealth.statusCode === 200 ? 'online' : 'offline',
     timestamp: new Date().toISOString()
   });
 });
 
-// Offers catalog data
-let ofertasData = null;
-try {
-  ofertasData = require('./ofertas.json');
-} catch (e) {
-  console.error('Error cargando ofertas.json:', e.message);
+// Helper para obtener ofertas desde la API externa (ej: Strapi http://localhost:1337/api/offers)
+async function fetchOffersData() {
+  try {
+    const url = new URL(OFFERS_API);
+    if (!url.searchParams.has('pagination[pageSize]')) {
+      url.searchParams.set('pagination[pageSize]', '100');
+    }
+
+    const response = await fetch(url.toString(), {
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    }
+
+    const json = await response.json();
+    const rawOffers = Array.isArray(json.data)
+      ? json.data
+      : (Array.isArray(json) ? json : (json.ofertas || []));
+
+    const normalizedOffers = rawOffers.map(item => {
+      const id = item.id_offer || item.documentId || String(item.id);
+      return {
+        ...item,
+        id: id,
+        strapi_id: item.id,
+        documentId: item.documentId,
+        id_offer: item.id_offer || id,
+        precio_original: typeof item.precio_original === 'number' ? item.precio_original : parseFloat(item.precio_original) || 0,
+        precio_oferta: typeof item.precio_oferta === 'number' ? item.precio_oferta : parseFloat(item.precio_oferta) || 0,
+        descuento_porcentaje: typeof item.descuento_porcentaje === 'number' ? item.descuento_porcentaje : parseInt(item.descuento_porcentaje) || 0
+      };
+    });
+
+    const categorias = Array.from(new Set(normalizedOffers.map(o => o.categoria).filter(Boolean)));
+
+    return {
+      total_ofertas: normalizedOffers.length,
+      categorias: categorias,
+      ofertas: normalizedOffers
+    };
+  } catch (error) {
+    console.error(`Error obteniendo ofertas desde ${OFFERS_API}:`, error.message);
+    // Fallback a ofertas.json en caso de que la API esté temporalmente inaccesible
+    try {
+      const fallback = require('./ofertas.json');
+      console.warn('⚠️ Usando ofertas.json como respaldo de contingencia.');
+      return fallback;
+    } catch (e) {
+      return null;
+    }
+  }
 }
 
-// Endpoint para servir ofertas.json directamente como fallback estático
-app.get('/ofertas.json', (req, res) => {
+// Endpoint para compatibilidad estática
+app.get('/ofertas.json', async (req, res) => {
+  const data = await fetchOffersData();
+  if (data) {
+    return res.json(data);
+  }
   res.sendFile(path.join(__dirname, 'ofertas.json'));
 });
 
 // Endpoint para catálogo de ofertas con filtro opcional de categoría
-app.get('/api/ofertas', (req, res) => {
-  if (!ofertasData) {
-    return res.status(500).json({ error: 'Catálogo de ofertas no disponible' });
+app.get('/api/ofertas', async (req, res) => {
+  const data = await fetchOffersData();
+  if (!data || !data.ofertas) {
+    return res.status(502).json({ error: 'Catálogo de ofertas no disponible desde la API' });
   }
 
   const { categoria } = req.query;
-  let filtradas = ofertasData.ofertas || [];
+  let filtradas = data.ofertas || [];
 
   if (categoria && categoria !== 'all' && categoria !== 'todas') {
-    filtradas = filtradas.filter(o => o.categoria.toLowerCase() === categoria.toLowerCase());
+    filtradas = filtradas.filter(o => o.categoria && o.categoria.toLowerCase() === categoria.toLowerCase());
   }
 
   res.json({
     total: filtradas.length,
-    total_catalogo: ofertasData.total_ofertas,
-    categorias: ofertasData.categorias,
+    total_catalogo: data.total_ofertas,
+    categorias: data.categorias,
     ofertas: filtradas
   });
 });
 
 // Endpoint para detalle de oferta por ID
-app.get('/api/ofertas/:id', (req, res) => {
-  if (!ofertasData) {
-    return res.status(500).json({ error: 'Catálogo de ofertas no disponible' });
+app.get('/api/ofertas/:id', async (req, res) => {
+  const data = await fetchOffersData();
+  if (!data || !data.ofertas) {
+    return res.status(502).json({ error: 'Catálogo de ofertas no disponible desde la API' });
   }
 
-  const oferta = ofertasData.ofertas.find(o => o.id === req.params.id);
+  const searchId = req.params.id;
+  const oferta = data.ofertas.find(o =>
+    String(o.id) === String(searchId) ||
+    String(o.id_offer) === String(searchId) ||
+    String(o.documentId) === String(searchId) ||
+    String(o.strapi_id) === String(searchId)
+  );
+
   if (!oferta) {
     return res.status(404).json({ error: 'Oferta no encontrada' });
   }
@@ -156,6 +218,7 @@ app.listen(PORT, () => {
   console.log('\n======================================================');
   console.log(`✨ TRACARDI DEMO APP CORRIENDO EN: http://localhost:${PORT}`);
   console.log(`🌐 Dashboard de Tracardi: http://localhost:8787`);
-  console.log(`📡 Tracardi API Endpoint: http://localhost:8686`);
+  console.log(`📡 Tracardi API Endpoint: ${TRACARDI_API}`);
+  console.log(`🏷️ Offers API Endpoint:   ${OFFERS_API}`);
   console.log('======================================================\n');
 });
