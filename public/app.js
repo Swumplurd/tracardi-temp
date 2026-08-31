@@ -821,3 +821,48 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+// Manejador del Modal de Consentimiento de Geolocalización (US-004)
+function handleGeoConsent(accepted) {
+  const modal = document.getElementById('geo-consent-modal');
+  if (modal) {
+    modal.classList.add('modal-hidden');
+  }
+
+  if (accepted) {
+    if ('geolocation' in navigator) {
+      const onSuccess = (position) => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
+        console.log('Geolocalización obtenida:', {
+          latitude: latitude,
+          longitude: longitude,
+          accuracy: accuracy
+        });
+        console.log(`Latitud: ${latitude}, Longitud: ${longitude}`);
+        showToast(`📍 Ubicación obtenida: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, 'success');
+      };
+
+      const onError = (error) => {
+        console.warn('Error al obtener la geolocalización:', error.message);
+        showToast('⚠️ No se pudo obtener la ubicación: ' + error.message, 'warning');
+      };
+
+      // Estrategia resiliente: enableHighAccuracy: false, timeout holgado y maximumAge para evitar timeouts en Linux/Desktop
+      const geoOptions = {
+        enableHighAccuracy: false,
+        timeout: 20000,
+        maximumAge: 300000
+      };
+
+      navigator.geolocation.getCurrentPosition(onSuccess, onError, geoOptions);
+    } else {
+      console.warn('La API de geolocalización no está soportada en este navegador.');
+      showToast('⚠️ Geolocalización no soportada en este navegador', 'warning');
+    }
+  } else {
+    console.log('Consentimiento de geolocalización rechazado por el usuario.');
+  }
+}
+

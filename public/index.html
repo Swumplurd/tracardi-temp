@@ -534,6 +534,31 @@ curl -X POST "http://localhost:8686/collect/payment-success/demo-webhook-source/
   <!-- Notification Toast Container -->
   <div id="toast-container" class="toast-container"></div>
 
+  <!-- Modal de Consentimiento de Geolocalización (US-004) -->
+  <div id="geo-consent-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="geo-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-icon">📍</div>
+        <div>
+          <h3 id="geo-modal-title" class="modal-title">Permiso de Geolocalización</h3>
+          <p class="modal-subtitle">Personalización basada en tu ubicación</p>
+        </div>
+      </div>
+      <div class="modal-body">
+        <p>¿Deseas compartir tu ubicación para mejorar tu experiencia y ofrecerte recomendaciones personalizadas según tu área geográfica?</p>
+        <p class="modal-privacy-note">🔒 Tu privacidad es importante. Solo utilizaremos las coordenadas si nos das tu autorización explícita.</p>
+      </div>
+      <div class="modal-actions">
+        <button id="btn-geo-reject" class="btn btn-outline" onclick="handleGeoConsent(false)">
+          ❌ Rechazar
+        </button>
+        <button id="btn-geo-accept" class="btn btn-blue" onclick="handleGeoConsent(true)">
+          📍 Permitir Ubicación
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
