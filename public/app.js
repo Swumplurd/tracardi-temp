@@ -10,6 +10,7 @@ if (!currentSessionId) {
 }
 
 let currentProfileId = localStorage.getItem('tracardi_profile_id') || '';
+let currentGeoRegion = localStorage.getItem('tracardi_geo_region') || '';
 let currentInterests = {};
 try {
   const savedInterests = localStorage.getItem('tracardi_profile_interests');
@@ -34,6 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('session-id').value = currentSessionId;
   document.getElementById('profile-id').value = currentProfileId || 'Se generará al enviar el 1er evento';
   
+  updateGeoRegionUI(currentGeoRegion);
+  checkGeoConsentModal();
   initTabs();
   checkHealth();
   updateProfileInterests(currentInterests);
@@ -79,6 +82,26 @@ function initTabs() {
   });
 }
 
+// Control de visibilidad del modal de consentimiento según el estado regional del perfil (US-005)
+function checkGeoConsentModal() {
+  const modal = document.getElementById('geo-consent-modal');
+  if (!modal) return;
+  if (currentGeoRegion) {
+    modal.classList.add('modal-hidden');
+  } else {
+    modal.classList.remove('modal-hidden');
+  }
+}
+
+// Actualizar indicador y campo de ubicación regional en el formulario de perfil
+function updateGeoRegionUI(regionCode) {
+  const input = document.getElementById('user-geo-region');
+  if (input) {
+    input.value = regionCode || '';
+    input.placeholder = regionCode ? regionCode : 'Sin ubicación registrada';
+  }
+}
+
 // Persona Selector
 function selectPersona(key) {
   document.querySelectorAll('.persona-chip').forEach(c => c.classList.remove('active'));
@@ -99,6 +122,11 @@ function selectPersona(key) {
   currentInterests = {};
   localStorage.removeItem('tracardi_profile_interests');
   updateProfileInterests({});
+
+  currentGeoRegion = '';
+  localStorage.removeItem('tracardi_geo_region');
+  updateGeoRegionUI('');
+  checkGeoConsentModal();
 
   showToast(`Persona cargada: ${p.name || 'Anónimo'}`);
 }
@@ -822,7 +850,99 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-// Manejador del Modal de Consentimiento de Geolocalización (US-004)
+// Geocodificación Inversa con Nominatim de OpenStreetMap (US-005)
+async function reverseGeocode(latitude, longitude) {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`;
+  
+  const response = await fetch(url, {
+    headers: {
+      'Accept': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} ${response.statusText} en geocodificación inversa`);
+  }
+
+  const data = await response.json();
+  const address = data.address || {};
+  
+  // Extraer código ISO3166-2 (preferentemente lvl4 para estado/región, o fallback a lvl3/lvl6)
+  const isoRegion = address['ISO3166-2-lvl4'] || address['ISO3166-2-lvl3'] || address['ISO3166-2-lvl6'] || null;
+
+  return {
+    isoRegion: isoRegion,
+    country: address.country || '',
+    countryCode: address.country_code || '',
+    state: address.state || address.county || address.region || '',
+    rawAddress: address
+  };
+}
+
+// Asociar la ubicación regional a Tracardi sin persistir coordenadas directas (latitud/longitud)
+async function trackGeoLocation(isoRegion, details = {}) {
+  // ATENCIÓN: Por requerimiento estricto de privacidad, NO se envían latitude ni longitude a Tracardi
+  const properties = {
+    iso_region: isoRegion,
+    'ISO3166-2-lvl4': isoRegion,
+    country: details.country || '',
+    country_code: details.countryCode || '',
+    state: details.state || '',
+    action: 'geo_consent_granted',
+    consented_at: new Date().toISOString()
+  };
+
+  const payload = {
+    source: { id: SOURCE_ID },
+    session: { id: currentSessionId },
+    profile: currentProfileId ? { id: currentProfileId } : null,
+    events: [
+      {
+        type: 'geo-location',
+        properties: properties
+      }
+    ]
+  };
+
+  // Actualizar tab de payload en el inspector
+  const payloadJson = document.getElementById('payload-json');
+  if (payloadJson) {
+    payloadJson.textContent = JSON.stringify(payload, null, 2);
+  }
+
+  try {
+    const res = await fetch(`${TRACARDI_API}/track`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await res.json();
+
+    if (result.profile) {
+      if (result.profile.id) {
+        currentProfileId = result.profile.id;
+        localStorage.setItem('tracardi_profile_id', currentProfileId);
+        const profInput = document.getElementById('profile-id');
+        if (profInput) profInput.value = currentProfileId;
+      }
+      if (result.profile.interests !== undefined) {
+        updateProfileInterests(result.profile.interests);
+      }
+    }
+
+    const respJson = document.getElementById('response-json');
+    if (respJson) {
+      respJson.textContent = JSON.stringify(result, null, 2);
+    }
+
+    addLogHistory('geo-location', result);
+  } catch (err) {
+    console.error('Error al registrar evento geo-location en Tracardi:', err.message);
+  }
+}
+
+// Manejador del Modal de Consentimiento de Geolocalización (US-004 & US-005)
 function handleGeoConsent(accepted) {
   const modal = document.getElementById('geo-consent-modal');
   if (modal) {
@@ -831,17 +951,39 @@ function handleGeoConsent(accepted) {
 
   if (accepted) {
     if ('geolocation' in navigator) {
-      const onSuccess = (position) => {
+      const onSuccess = async (position) => {
         const latitude = position.coords.latitude;
         const longitude = position.coords.longitude;
         const accuracy = position.coords.accuracy;
-        console.log('Geolocalización obtenida:', {
+
+        console.log('Geolocalización obtenida del navegador (uso en memoria para geocodificación):', {
           latitude: latitude,
           longitude: longitude,
           accuracy: accuracy
         });
         console.log(`Latitud: ${latitude}, Longitud: ${longitude}`);
-        showToast(`📍 Ubicación obtenida: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, 'success');
+
+        try {
+          showToast('🔍 Resolviendo código de región geográfica...', 'info');
+          const geoData = await reverseGeocode(latitude, longitude);
+
+          if (geoData.isoRegion) {
+            currentGeoRegion = geoData.isoRegion;
+            localStorage.setItem('tracardi_geo_region', currentGeoRegion);
+            updateGeoRegionUI(currentGeoRegion);
+
+            // Guardar y asociar en el perfil de Tracardi sin coordenadas directas
+            await trackGeoLocation(currentGeoRegion, geoData);
+
+            showToast(`📍 Ubicación regional asignada: ${currentGeoRegion}`, 'success');
+          } else {
+            console.warn('El servicio de geocodificación inversa no retornó un código regional ISO3166-2 válido:', geoData);
+            showToast('⚠️ No se identificó el código de región geográfica para las coordenadas obtenidas', 'warning');
+          }
+        } catch (geoErr) {
+          console.error('Error al resolver la geocodificación inversa con Nominatim:', geoErr.message);
+          showToast('⚠️ No se pudo determinar la ubicación regional (servicio no disponible)', 'warning');
+        }
       };
 
       const onError = (error) => {
