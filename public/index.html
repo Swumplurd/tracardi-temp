@@ -9,6 +9,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-NJ5FJ6706J"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-NJ5FJ6706J');
+  </script>
 </head>
 <body>
 
@@ -101,7 +109,15 @@
             </div>
             <div class="form-group form-group-full">
               <label>📍 Ubicación Regional (ISO3166-2)</label>
-              <input type="text" id="user-geo-region" placeholder="Sin ubicación registrada" readonly>
+              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="user-geo-region" placeholder="Sin ubicación registrada" readonly style="flex: 1; min-width: 180px;">
+                <div class="region-quick-btns">
+                  <button type="button" class="btn btn-xs btn-outline" onclick="setManualGeoRegion('MX-JAL')">📍 MX-JAL</button>
+                  <button type="button" class="btn btn-xs btn-outline" onclick="setManualGeoRegion('MX-CMX')">📍 MX-CMX</button>
+                  <button type="button" class="btn btn-xs btn-outline" onclick="setManualGeoRegion('MX-NLE')">📍 MX-NLE</button>
+                  <button type="button" class="btn btn-xs btn-outline" onclick="setManualGeoRegion('')">🌐 Sin Región</button>
+                </div>
+              </div>
             </div>
             <div class="form-group form-group-full">
               <label>🎯 Intereses del Perfil (Retornados por Tracardi)</label>
@@ -564,5 +580,290 @@ curl -X POST "http://localhost:8686/collect/payment-success/demo-webhook-source/
   </div>
 
   <script src="app.js"></script>
+  <script>
+/* =========================================================
+   GOOGLE ANALYTICS 4 - TRACKING DEMO TRACARDI
+   Measurement ID: G-NJ5FJ6706J
+   ========================================================= */
+
+(function () {
+
+  /* -----------------------------------------
+     Función general para enviar eventos GA4
+  ------------------------------------------ */
+  function trackGA4(eventName, params = {}) {
+
+    if (typeof gtag !== 'function') {
+      console.warn('[GA4] gtag todavía no está disponible');
+      return;
+    }
+
+    gtag('event', eventName, {
+      ...params,
+      page_title: document.title,
+      page_location: window.location.href
+    });
+
+    console.log('[GA4 EVENT]', eventName, params);
+  }
+
+
+  /* =====================================================
+     1. TRACKING GENERAL DE TODOS LOS BOTONES
+     ===================================================== */
+
+  document.addEventListener('click', function(event) {
+
+    const button = event.target.closest('button');
+
+    if (!button) return;
+
+    const buttonText =
+      button.innerText
+        ?.replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 100) || 'sin_texto';
+
+    trackGA4('ui_click', {
+      button_text: buttonText,
+      button_id: button.id || 'sin_id',
+      button_class: button.className || 'sin_clase'
+    });
+
+  });
+
+
+  /* =====================================================
+     2. BOTONES DEL SIMULADOR TRACARDI
+     ===================================================== */
+
+  document.addEventListener('click', function(event) {
+
+    const button = event.target.closest('.action-btn');
+
+    if (!button) return;
+
+    const onclick = button.getAttribute('onclick') || '';
+
+
+    /* PAGE VIEW */
+    if (onclick.includes("page-view")) {
+
+      trackGA4('demo_page_view', {
+        funnel_step: 1,
+        funnel_name: 'tracardi_demo'
+      });
+
+    }
+
+
+    /* USER IDENTIFY */
+    if (onclick.includes("user-identify")) {
+
+      trackGA4('login', {
+        method: 'tracardi_profile',
+        funnel_step: 2,
+        funnel_name: 'tracardi_demo'
+      });
+
+    }
+
+
+    /* ADD TO CART */
+    if (onclick.includes("add-to-cart")) {
+
+      trackGA4('add_to_cart', {
+
+        currency: 'MXN',
+        value: 100,
+
+        funnel_step: 3,
+        funnel_name: 'tracardi_demo',
+
+        items: [{
+          item_id: 'demo_product_001',
+          item_name: 'Producto Demo Tracardi',
+          item_category: 'demo',
+          price: 100,
+          quantity: 1
+        }]
+
+      });
+
+    }
+
+
+    /* PURCHASE */
+    if (onclick.includes("purchase")) {
+
+      trackGA4('purchase', {
+
+        transaction_id:
+          'TRACARDI_' + Date.now(),
+
+        currency: 'MXN',
+        value: 100,
+
+        funnel_step: 4,
+        funnel_name: 'tracardi_demo',
+
+        items: [{
+          item_id: 'demo_product_001',
+          item_name: 'Producto Demo Tracardi',
+          item_category: 'demo',
+          price: 100,
+          quantity: 1
+        }]
+
+      });
+
+    }
+
+
+    /* LEAD */
+    if (onclick.includes("lead-signup")) {
+
+      trackGA4('generate_lead', {
+
+        lead_source: 'newsletter',
+        funnel_name: 'lead_demo'
+
+      });
+
+    }
+
+
+    /* CUSTOM EVENT */
+    if (onclick.includes("custom-event")) {
+
+      trackGA4('custom_demo_event', {
+        source: 'tracardi_simulator'
+      });
+
+    }
+
+  });
+
+
+  /* =====================================================
+     3. SELECCIÓN DE PERSONA
+     ===================================================== */
+
+  document.addEventListener('click', function(event) {
+
+    const button = event.target.closest('.persona-chip');
+
+    if (!button) return;
+
+    const onclick = button.getAttribute('onclick') || '';
+
+    let persona = 'unknown';
+
+    if (onclick.includes("'ana'")) {
+      persona = 'ana';
+    }
+
+    if (onclick.includes("'carlos'")) {
+      persona = 'carlos';
+    }
+
+    if (onclick.includes("'anon'")) {
+      persona = 'anonymous';
+    }
+
+    trackGA4('select_persona', {
+      persona_type: persona
+    });
+
+  });
+
+
+  /* =====================================================
+     4. FILTROS DEL CATÁLOGO DE OFERTAS
+     ===================================================== */
+
+  document.addEventListener('click', function(event) {
+
+    const button = event.target.closest('.oferta-filter-btn');
+
+    if (!button) return;
+
+    const category =
+      button.dataset.category || 'unknown';
+
+    trackGA4('filter_offers', {
+      offer_category: category
+    });
+
+  });
+
+
+  /* =====================================================
+     5. VOLVER AL CATÁLOGO
+     ===================================================== */
+
+  document.addEventListener('click', function(event) {
+
+    const button =
+      event.target.closest('#btn-back-to-catalog');
+
+    if (!button) return;
+
+    trackGA4('back_to_offer_list', {
+      section: 'offer_detail'
+    });
+
+  });
+
+
+  /* =====================================================
+     6. GEOLOCALIZACIÓN
+     ===================================================== */
+
+  document.addEventListener('click', function(event) {
+
+    if (event.target.closest('#btn-geo-accept')) {
+
+      trackGA4('geo_consent', {
+        consent_status: 'accepted'
+      });
+
+    }
+
+
+    if (event.target.closest('#btn-geo-reject')) {
+
+      trackGA4('geo_consent', {
+        consent_status: 'rejected'
+      });
+
+    }
+
+  });
+
+
+  /* =====================================================
+     7. CAMBIO DE TAB
+     ===================================================== */
+
+  document.addEventListener('click', function(event) {
+
+    const button =
+      event.target.closest('.tab-btn');
+
+    if (!button) return;
+
+    trackGA4('navigation_tab', {
+
+      tab_name:
+        button.dataset.tab || 'unknown'
+
+    });
+
+  });
+
+
+})();
+</script>
 </body>
 </html>

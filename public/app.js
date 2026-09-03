@@ -127,8 +127,24 @@ function selectPersona(key) {
   localStorage.removeItem('tracardi_geo_region');
   updateGeoRegionUI('');
   checkGeoConsentModal();
+  renderOfertas();
 
   showToast(`Persona cargada: ${p.name || 'Anónimo'}`);
+}
+
+// Establecer o alternar manualmente la región geográfica (US-006)
+function setManualGeoRegion(regionCode) {
+  currentGeoRegion = regionCode || '';
+  if (currentGeoRegion) {
+    localStorage.setItem('tracardi_geo_region', currentGeoRegion);
+    showToast(`📍 Ubicación regional establecida: ${currentGeoRegion}`, 'info');
+  } else {
+    localStorage.removeItem('tracardi_geo_region');
+    showToast('🌐 Ubicación regional reiniciada (Mostrando todas las ofertas)', 'info');
+  }
+  updateGeoRegionUI(currentGeoRegion);
+  checkGeoConsentModal();
+  renderOfertas();
 }
 
 // Helper para obtener puntaje de interés normalizado por categoría
@@ -425,6 +441,20 @@ function showToast(message, type = 'info') {
 let ofertasList = [];
 let activeOfertaCategory = 'all';
 
+// Helper para verificar si una oferta coincide con la región geográfica activa (US-006)
+function isOfferEligibleForRegion(oferta, userRegion) {
+  // Si no hay región de usuario registrada / no hay consentimiento, todas las ofertas son elegibles
+  if (!userRegion || typeof userRegion !== 'string' || userRegion.trim() === '') {
+    return true;
+  }
+  // Si la oferta no tiene entidad federativa (null / undefined / vacía), es de cobertura nacional
+  if (!oferta.entidad_federativa || (typeof oferta.entidad_federativa === 'string' && oferta.entidad_federativa.trim() === '')) {
+    return true;
+  }
+  // Si tiene entidad federativa, debe coincidir exactamente (case-insensitive) con la región del usuario
+  return String(oferta.entidad_federativa).trim().toUpperCase() === userRegion.trim().toUpperCase();
+}
+
 // Cargar catálogo de ofertas desde la API
 async function loadOfertas() {
   const countBadge = document.getElementById('ofertas-count-badge');
@@ -441,16 +471,22 @@ async function loadOfertas() {
       if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status} al cargar API directa de ofertas`);
       const fallbackData = await fallbackRes.json();
       const rawOffers = Array.isArray(fallbackData.data) ? fallbackData.data : (fallbackData.ofertas || []);
-      ofertasList = rawOffers.map(item => ({
-        ...item,
-        id: item.id_offer || item.documentId || String(item.id),
-        strapi_id: item.id,
-        documentId: item.documentId,
-        id_offer: item.id_offer || item.id,
-        precio_original: typeof item.precio_original === 'number' ? item.precio_original : parseFloat(item.precio_original) || 0,
-        precio_oferta: typeof item.precio_oferta === 'number' ? item.precio_oferta : parseFloat(item.precio_oferta) || 0,
-        descuento_porcentaje: typeof item.descuento_porcentaje === 'number' ? item.descuento_porcentaje : parseInt(item.descuento_porcentaje) || 0
-      }));
+      ofertasList = rawOffers.map(item => {
+        const entidadFederativa = item.entidad_federativa !== undefined
+          ? item.entidad_federativa
+          : (item.attributes && item.attributes.entidad_federativa !== undefined ? item.attributes.entidad_federativa : null);
+        return {
+          ...item,
+          id: item.id_offer || item.documentId || String(item.id),
+          strapi_id: item.id,
+          documentId: item.documentId,
+          id_offer: item.id_offer || item.id,
+          entidad_federativa: entidadFederativa || null,
+          precio_original: typeof item.precio_original === 'number' ? item.precio_original : parseFloat(item.precio_original) || 0,
+          precio_oferta: typeof item.precio_oferta === 'number' ? item.precio_oferta : parseFloat(item.precio_oferta) || 0,
+          descuento_porcentaje: typeof item.descuento_porcentaje === 'number' ? item.descuento_porcentaje : parseInt(item.descuento_porcentaje) || 0
+        };
+      });
       renderOfertas();
     } catch (e2) {
       console.error('Error total al cargar ofertas:', e2);
@@ -503,19 +539,24 @@ function filterOfertas(category) {
   }
 }
 
-// Renderizar la lista de ofertas según el filtro activo y afinidad de intereses
+// Renderizar la lista de ofertas según el filtro regional (US-006), categoría y afinidad de intereses (US-003)
 function renderOfertas() {
   const grid = document.getElementById('ofertas-grid');
   const countBadge = document.getElementById('ofertas-count-badge');
   if (!grid) return;
 
+  // 1. Filtrado Regional (US-006):
+  // Si el usuario tiene ubicación regional registrada/compartida: mostrar solo las ofertas de su región y las nacionales (null).
+  // Si no compartió ubicación o no hay región registrada: mostrar todas las ofertas disponibles sin exclusión regional.
+  const regionEligibleOffers = ofertasList.filter(o => isOfferEligibleForRegion(o, currentGeoRegion));
+
   let filtered = [];
 
   if (activeOfertaCategory === 'all') {
     // En la vista general "Todas":
-    // 1. Excluir ofertas cuya categoría tenga interés <= 1 o no figure en los intereses
+    // 1. Excluir ofertas cuya categoría tenga interés <= 1 o no figure en los intereses (US-003)
     // 2. Ordenar descendentemente según el peso de interés del usuario (mayor interés primero)
-    filtered = ofertasList
+    filtered = regionEligibleOffers
       .filter(o => getInterestScore(o.categoria) > 1)
       .sort((a, b) => {
         const scoreA = getInterestScore(a.categoria);
@@ -525,8 +566,8 @@ function renderOfertas() {
 
     if (countBadge) {
       countBadge.textContent = filtered.length > 0
-        ? `Mostrando ${filtered.length} ofertas personalizadas`
-        : '0 ofertas personalizadas';
+        ? `Mostrando ${filtered.length} ofertas personalizadas${currentGeoRegion ? ` (📍 ${currentGeoRegion})` : ''}`
+        : `0 ofertas personalizadas${currentGeoRegion ? ` (📍 ${currentGeoRegion})` : ''}`;
     }
 
     if (filtered.length === 0) {
@@ -535,7 +576,7 @@ function renderOfertas() {
           <div style="font-size: 3rem; margin-bottom: 0.75rem;">🎯</div>
           <h3 style="font-size: 1.3rem; margin-bottom: 0.5rem; color: var(--text-main);">Sin recomendaciones personalizadas aún</h3>
           <p style="color: var(--text-muted); max-width: 550px; margin: 0 auto 1.5rem auto; line-height: 1.5;">
-            En la vista general solo priorizamos ofertas según tus intereses registrados (afinidad &gt; 1.0).
+            En la vista general solo priorizamos ofertas según tus intereses registrados (afinidad &gt; 1.0)${currentGeoRegion ? ` y aplicables a tu región (${currentGeoRegion}) o de cobertura nacional` : ''}.
             Explora las categorías específicas o interactúa con ofertas para que Tracardi registre tus preferencias en tiempo real.
           </p>
           <div class="quick-category-suggestions" style="display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap;">
@@ -550,11 +591,11 @@ function renderOfertas() {
       return;
     }
   } else {
-    // Al filtrar por una categoría específica: mostrar todas las ofertas de la categoría sin exclusión
-    filtered = ofertasList.filter(o => o.categoria.toLowerCase() === activeOfertaCategory.toLowerCase());
+    // Al filtrar por una categoría específica: mostrar todas las ofertas de la categoría que cumplan con la región
+    filtered = regionEligibleOffers.filter(o => o.categoria.toLowerCase() === activeOfertaCategory.toLowerCase());
 
     if (countBadge) {
-      countBadge.textContent = `Mostrando ${filtered.length} ofertas`;
+      countBadge.textContent = `Mostrando ${filtered.length} ofertas${currentGeoRegion ? ` (📍 ${currentGeoRegion})` : ''}`;
     }
 
     if (filtered.length === 0) {
@@ -562,7 +603,7 @@ function renderOfertas() {
         <div class="empty-state" style="grid-column: 1 / -1; padding: 3rem 1rem;">
           <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
           <h3>No se encontraron ofertas</h3>
-          <p>No hay promociones disponibles en la categoría seleccionada.</p>
+          <p>No hay promociones disponibles en la categoría seleccionada${currentGeoRegion ? ` para tu región (${currentGeoRegion})` : ''}.</p>
           <button class="btn btn-blue" style="margin-top: 1rem;" onclick="filterOfertas('all')">Ver todas las ofertas</button>
         </div>
       `;
@@ -574,12 +615,18 @@ function renderOfertas() {
     const icon = getCategoryIcon(oferta.categoria);
     const catUpper = oferta.categoria.toUpperCase();
     const score = getInterestScore(oferta.categoria);
+    const regionBadge = oferta.entidad_federativa
+      ? `<span class="badge-region" title="Oferta exclusiva para región ${escapeHtml(oferta.entidad_federativa)}">📍 ${escapeHtml(oferta.entidad_federativa)}</span>`
+      : `<span class="badge-national" title="Oferta de cobertura nacional">🌐 Nacional</span>`;
 
     return `
       <div class="oferta-card" data-id="${escapeHtml(oferta.id)}" onclick="viewOfferDetail('${escapeHtml(oferta.id)}')">
         <div class="oferta-card-header">
-          <span class="oferta-badge-cat cat-${escapeHtml(oferta.categoria)}">${icon} ${catUpper}</span>
-          ${score > 1 ? `<span class="interest-tag" style="padding: 0.15rem 0.5rem; font-size: 0.72rem;" title="Afinidad de interés: ${score.toFixed(1)}">🎯 ${score.toFixed(1)}</span>` : ''}
+          <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+            <span class="oferta-badge-cat cat-${escapeHtml(oferta.categoria)}">${icon} ${catUpper}</span>
+            ${regionBadge}
+            ${score > 1 ? `<span class="interest-tag" style="padding: 0.15rem 0.5rem; font-size: 0.72rem;" title="Afinidad de interés: ${score.toFixed(1)}">🎯 ${score.toFixed(1)}</span>` : ''}
+          </div>
           <span class="oferta-badge-discount">-${oferta.descuento_porcentaje}% OFF</span>
         </div>
 
@@ -630,11 +677,15 @@ function viewOfferDetail(offerId) {
     const icon = getCategoryIcon(oferta.categoria);
     const ahorro = (oferta.precio_original - oferta.precio_oferta).toFixed(2);
     const score = getInterestScore(oferta.categoria);
+    const regionBadge = oferta.entidad_federativa
+      ? `<span class="badge-region" title="Oferta exclusiva para región ${escapeHtml(oferta.entidad_federativa)}">📍 ${escapeHtml(oferta.entidad_federativa)}</span>`
+      : `<span class="badge-national" title="Oferta de cobertura nacional">🌐 Cobertura Nacional</span>`;
 
     detailCard.innerHTML = `
       <div class="detail-header-section">
         <div class="detail-top-badges">
           <span class="oferta-badge-cat cat-${escapeHtml(oferta.categoria)}">${icon} ${escapeHtml(oferta.categoria.toUpperCase())}</span>
+          ${regionBadge}
           ${score > 1 ? `<span class="interest-tag" style="padding: 0.2rem 0.6rem; font-size: 0.8rem;">🎯 Afinidad: ${score.toFixed(1)}</span>` : ''}
           <span class="oferta-badge-discount">-${oferta.descuento_porcentaje}% DESCUENTO</span>
           <span class="badge badge-purple">ID: ${escapeHtml(oferta.id)}</span>
@@ -654,6 +705,10 @@ function viewOfferDetail(offerId) {
           <p class="detail-description">${escapeHtml(oferta.descripcion)}</p>
 
           <div class="detail-meta-grid">
+            <div class="meta-item">
+              <span class="meta-label">📍 Cobertura / Región</span>
+              <span class="meta-value">${oferta.entidad_federativa ? escapeHtml(oferta.entidad_federativa) + ' (Regional)' : 'Nacional (Todo el país)'}</span>
+            </div>
             <div class="meta-item">
               <span class="meta-label">🏷️ Tipo de Oferta</span>
               <span class="meta-value">${escapeHtml(oferta.tipo_oferta)}</span>
@@ -713,12 +768,13 @@ function viewOfferDetail(offerId) {
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // Disparar evento de segmentación específico según la categoría de la oferta
+    // Disparar evento de segmentación específico según la categoría y región de la oferta
     const segEvent = 'offer-view';
     trackOfertaEvent(segEvent, {
       offer_id: oferta.id,
       title: oferta.titulo,
       category: oferta.categoria,
+      entidad_federativa: oferta.entidad_federativa || null,
       store: oferta.establecimiento,
       price_original: oferta.precio_original,
       price_offer: oferta.precio_oferta,
@@ -975,6 +1031,9 @@ function handleGeoConsent(accepted) {
             // Guardar y asociar en el perfil de Tracardi sin coordenadas directas
             await trackGeoLocation(currentGeoRegion, geoData);
 
+            // Sincronizar catálogo de ofertas con la nueva región asignada
+            renderOfertas();
+
             showToast(`📍 Ubicación regional asignada: ${currentGeoRegion}`, 'success');
           } else {
             console.warn('El servicio de geocodificación inversa no retornó un código regional ISO3166-2 válido:', geoData);
@@ -1005,6 +1064,10 @@ function handleGeoConsent(accepted) {
     }
   } else {
     console.log('Consentimiento de geolocalización rechazado por el usuario.');
+    currentGeoRegion = '';
+    localStorage.removeItem('tracardi_geo_region');
+    updateGeoRegionUI('');
+    renderOfertas();
   }
 }
 

@@ -86,12 +86,17 @@ async function fetchOffersData() {
 
     const normalizedOffers = rawOffers.map(item => {
       const id = item.id_offer || item.documentId || String(item.id);
+      const entidadFederativa = item.entidad_federativa !== undefined
+        ? item.entidad_federativa
+        : (item.attributes && item.attributes.entidad_federativa !== undefined ? item.attributes.entidad_federativa : null);
+
       return {
         ...item,
         id: id,
         strapi_id: item.id,
         documentId: item.documentId,
         id_offer: item.id_offer || id,
+        entidad_federativa: entidadFederativa || null,
         precio_original: typeof item.precio_original === 'number' ? item.precio_original : parseFloat(item.precio_original) || 0,
         precio_oferta: typeof item.precio_oferta === 'number' ? item.precio_oferta : parseFloat(item.precio_oferta) || 0,
         descuento_porcentaje: typeof item.descuento_porcentaje === 'number' ? item.descuento_porcentaje : parseInt(item.descuento_porcentaje) || 0
@@ -127,18 +132,23 @@ app.get('/ofertas.json', async (req, res) => {
   res.sendFile(path.join(__dirname, 'ofertas.json'));
 });
 
-// Endpoint para catálogo de ofertas con filtro opcional de categoría
+// Endpoint para catálogo de ofertas con filtro opcional de categoría y región
 app.get('/api/ofertas', async (req, res) => {
   const data = await fetchOffersData();
   if (!data || !data.ofertas) {
     return res.status(502).json({ error: 'Catálogo de ofertas no disponible desde la API' });
   }
 
-  const { categoria } = req.query;
+  const { categoria, region, entidad_federativa } = req.query;
   let filtradas = data.ofertas || [];
 
   if (categoria && categoria !== 'all' && categoria !== 'todas') {
     filtradas = filtradas.filter(o => o.categoria && o.categoria.toLowerCase() === categoria.toLowerCase());
+  }
+
+  const geoRegion = region || entidad_federativa;
+  if (geoRegion && geoRegion !== 'all' && geoRegion !== 'todas') {
+    filtradas = filtradas.filter(o => !o.entidad_federativa || o.entidad_federativa.toUpperCase() === geoRegion.toUpperCase());
   }
 
   res.json({
