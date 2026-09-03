@@ -50,6 +50,9 @@
       <button class="tab-btn" data-tab="ofertas-tab">
         🏷️ Demo Ofertas
       </button>
+      <button class="tab-btn" data-tab="metricas-tab">
+        📊 Métricas de Promociones
+      </button>
       <button class="tab-btn" data-tab="backend-tab">
         🖥️ Eventos Servidor a Servidor (Backend)
       </button>
@@ -549,6 +552,212 @@ curl -X POST "http://localhost:8686/collect/payment-success/demo-webhook-source/
       </div>
     </section>
 
+    <!-- TAB 6: MÉTRICAS DE PROMOCIONES (US-007) -->
+    <section id="metricas-tab" class="tab-content">
+      <!-- Encabezado del Panel -->
+      <div class="card shadow" style="margin-bottom: 1.5rem;">
+        <div class="card-header" style="flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+              <h2>📊 Panel de Rendimiento y Métricas de Promociones</h2>
+              <span class="badge badge-purple">Analytics en Tiempo Real</span>
+            </div>
+            <p class="subtitle" style="margin-top: 0.3rem;">
+              Métricas consolidadas de clics, redenciones y tasa de conversión por oferta para la evaluación y toma de decisiones comerciales.
+            </p>
+          </div>
+          <div class="metrics-actions-bar" style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-sm btn-blue" id="btn-refresh-metrics" onclick="refreshPromotionMetrics()">
+              🔄 Actualizar Métricas
+            </button>
+            <button class="btn btn-sm btn-ghost" onclick="resetPromotionMetrics()" title="Restablecer métricas al valor inicial demo">
+              ↺ Reiniciar
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI Cards Grid (Indicadores Comparativos Globales) -->
+        <div class="metrics-kpi-grid">
+          <div class="metric-kpi-card kpi-blue">
+            <div class="kpi-icon">👁️</div>
+            <div class="kpi-content">
+              <span class="kpi-label">Clics Totales</span>
+              <strong class="kpi-value" id="kpi-total-clicks">0</strong>
+              <small class="kpi-sub">Interacciones registradas</small>
+            </div>
+          </div>
+
+          <div class="metric-kpi-card kpi-green">
+            <div class="kpi-icon">🎟️</div>
+            <div class="kpi-content">
+              <span class="kpi-label">Redenciones Totales</span>
+              <strong class="kpi-value" id="kpi-total-redemptions">0</strong>
+              <small class="kpi-sub">Cupones canjeados</small>
+            </div>
+          </div>
+
+          <div class="metric-kpi-card kpi-purple">
+            <div class="kpi-icon">📈</div>
+            <div class="kpi-content">
+              <span class="kpi-label">Tasa de Conversión Global</span>
+              <strong class="kpi-value" id="kpi-global-conversion">0.0%</strong>
+              <small class="kpi-sub">Redenciones / Clics</small>
+            </div>
+          </div>
+
+          <div class="metric-kpi-card kpi-amber">
+            <div class="kpi-icon">🏷️</div>
+            <div class="kpi-content">
+              <span class="kpi-label">Promociones Monitoreadas</span>
+              <strong class="kpi-value" id="kpi-total-promos">0</strong>
+              <small class="kpi-sub">En catálogo activo</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Destaques Comerciales / Top Performers (Indicadores Comparativos) -->
+      <div class="card shadow" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+          <div>
+            <h3>⭐ Promociones Destacadas para Toma de Decisiones</h3>
+            <p class="subtitle" style="margin-top: 0.2rem;">Identificación inmediata de las ofertas con mayor impacto comercial, efectividad y tracción</p>
+          </div>
+        </div>
+
+        <div class="metrics-highlights-grid">
+          <!-- Card 1: Más Clickeada -->
+          <div class="highlight-card highlight-clicks">
+            <div class="highlight-badge-header">
+              <span class="badge badge-blue">👁️ Más Clickeada</span>
+              <span class="highlight-stat-pill" id="highlight-most-clicks-val">0 clics</span>
+            </div>
+            <h4 class="highlight-title" id="highlight-most-clicks-title">Cargando...</h4>
+            <div class="highlight-meta">
+              <span id="highlight-most-clicks-store">--</span> • <span id="highlight-most-clicks-cat">--</span>
+            </div>
+            <div class="highlight-action-row">
+              <span class="highlight-rate-label">Conversión: <strong id="highlight-most-clicks-rate">0.0%</strong></span>
+              <button class="btn btn-xs btn-outline" id="btn-view-most-clicks" onclick="">Ver Oferta</button>
+            </div>
+          </div>
+
+          <!-- Card 2: Más Redimida -->
+          <div class="highlight-card highlight-redemptions">
+            <div class="highlight-badge-header">
+              <span class="badge badge-teal">🏆 Más Redimida</span>
+              <span class="highlight-stat-pill" id="highlight-most-redeemed-val">0 canjes</span>
+            </div>
+            <h4 class="highlight-title" id="highlight-most-redeemed-title">Cargando...</h4>
+            <div class="highlight-meta">
+              <span id="highlight-most-redeemed-store">--</span> • <span id="highlight-most-redeemed-cat">--</span>
+            </div>
+            <div class="highlight-action-row">
+              <span class="highlight-rate-label">Conversión: <strong id="highlight-most-redeemed-rate">0.0%</strong></span>
+              <button class="btn btn-xs btn-outline" id="btn-view-most-redeemed" onclick="">Ver Oferta</button>
+            </div>
+          </div>
+
+          <!-- Card 3: Mayor Conversión -->
+          <div class="highlight-card highlight-conversion">
+            <div class="highlight-badge-header">
+              <span class="badge badge-purple">⚡ Mayor Efectividad</span>
+              <span class="highlight-stat-pill" id="highlight-best-conv-val">0.0%</span>
+            </div>
+            <h4 class="highlight-title" id="highlight-best-conv-title">Cargando...</h4>
+            <div class="highlight-meta">
+              <span id="highlight-best-conv-store">--</span> • <span id="highlight-best-conv-cat">--</span>
+            </div>
+            <div class="highlight-action-row">
+              <span class="highlight-rate-label">Redenciones: <strong id="highlight-best-conv-redemptions">0</strong></span>
+              <button class="btn btn-xs btn-outline" id="btn-view-best-conv" onclick="">Ver Oferta</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Strategic Decision Insights Box -->
+        <div class="decision-insights-box">
+          <div class="decision-icon">💡</div>
+          <div class="decision-content">
+            <h4>Recomendaciones Estratégicas de Negocio (Tracardi Intelligence)</h4>
+            <p id="decision-insights-text">
+              Las promociones con mayor tasa de conversión demuestran alta tracción de compra inmediata; se recomienda amplificar su presupuesto de visibilidad. Aquellas con elevado tráfico de clics pero baja tasa de canje requieren revisar el porcentaje de descuento o simplificar las condiciones del cupón.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rendimiento por Categoría -->
+      <div class="card shadow" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+          <div>
+            <h3>📁 Rendimiento Comparativo por Categoría</h3>
+            <p class="subtitle" style="margin-top: 0.2rem;">Distribución de interés y canjes en las distintas líneas comerciales</p>
+          </div>
+        </div>
+
+        <div id="metrics-category-grid" class="metrics-category-grid">
+          <!-- Renderizado dinámico de categorías -->
+        </div>
+      </div>
+
+      <!-- Tabla Detallada de Promociones -->
+      <div class="card shadow">
+        <div class="card-header" style="flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <h3>📋 Rendimiento Individual de Promociones</h3>
+            <p class="subtitle" style="margin-top: 0.2rem;">Visualiza clics totales, redenciones y ratios de conversión por cada oferta</p>
+          </div>
+
+          <!-- Filtro y ordenamiento -->
+          <div class="metrics-filters-row">
+            <div class="search-input-wrapper">
+              <input type="text" id="metrics-search-input" placeholder="Buscar por título o tienda..." oninput="handleMetricsSearch(this.value)">
+            </div>
+            <div class="sort-buttons-group">
+              <button class="btn btn-xs btn-outline metric-sort-btn active" data-sort="redemptions" onclick="sortMetricsTable('redemptions')">
+                🏆 Más Redimidas
+              </button>
+              <button class="btn btn-xs btn-outline metric-sort-btn" data-sort="conversion" onclick="sortMetricsTable('conversion')">
+                ⚡ Mayor Conversión
+              </button>
+              <button class="btn btn-xs btn-outline metric-sort-btn" data-sort="clicks" onclick="sortMetricsTable('clicks')">
+                👁️ Más Clics
+              </button>
+              <button class="btn btn-xs btn-outline metric-sort-btn" data-sort="category" onclick="sortMetricsTable('category')">
+                🏷️ Categoría
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla de Métricas -->
+        <div class="metrics-table-container">
+          <table class="metrics-table">
+            <thead>
+              <tr>
+                <th>Promoción / Establecimiento</th>
+                <th style="text-align: center;">Categoría</th>
+                <th style="text-align: right;">Precio / Cupón</th>
+                <th style="text-align: right;">Clics Totales</th>
+                <th style="text-align: right;">Redenciones</th>
+                <th style="text-align: center; min-width: 140px;">Tasa de Conversión</th>
+                <th style="text-align: center;">Destaque</th>
+                <th style="text-align: center;">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="metrics-table-body">
+              <tr>
+                <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                  Cargando métricas de promociones...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- Notification Toast Container -->
@@ -574,6 +783,38 @@ curl -X POST "http://localhost:8686/collect/payment-success/demo-webhook-source/
         </button>
         <button id="btn-geo-accept" class="btn btn-blue" onclick="handleGeoConsent(true)">
           📍 Permitir Ubicación
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmación de Canje de Promoción (US-007) -->
+  <div id="redeem-confirm-modal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="redeem-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-icon" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.3); font-size: 2rem;">🎟️</div>
+        <div>
+          <h3 id="redeem-modal-title" class="modal-title">Confirmar Canje de Promoción</h3>
+          <p class="modal-subtitle">Emisión de evento y registro analítico en Tracardi</p>
+        </div>
+      </div>
+      <div class="modal-body">
+        <p id="redeem-modal-desc">¿Deseas canjear esta oferta y activar tu cupón de descuento?</p>
+        <div class="redeem-modal-summary" style="margin-top: 1rem; padding: 0.85rem; background: rgba(13, 18, 29, 0.7); border: 1px solid var(--border-color); border-radius: 10px;">
+          <div style="font-weight: 600; font-size: 1rem; color: var(--text-main); margin-bottom: 0.3rem;" id="redeem-modal-promo-title">--</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;" id="redeem-modal-promo-store">--</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 0.5rem;">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">Código de Cupón:</span>
+            <code style="font-family: var(--font-mono); color: var(--accent-amber); font-weight: 700; font-size: 0.95rem;" id="redeem-modal-promo-coupon">--</code>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btn-redeem-cancel" class="btn btn-outline" onclick="closeRedeemModal()">
+          ❌ Cancelar
+        </button>
+        <button id="btn-redeem-confirm" class="btn btn-green" onclick="confirmRedeemAction()">
+          ✅ Confirmar Canje
         </button>
       </div>
     </div>

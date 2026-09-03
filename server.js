@@ -181,6 +181,199 @@ app.get('/api/ofertas/:id', async (req, res) => {
   res.json(oferta);
 });
 
+// =======================================================
+// MÉTRICAS Y TRACKING DE RENDIMIENTO DE PROMOCIONES (US-007)
+// =======================================================
+
+// Métricas base para simulación realista y análisis de efectividad
+const baselineOfferMetrics = {
+  'COM-001': { clicks: 142, redemptions: 48 },
+  'COM-002': { clicks: 95, redemptions: 26 },
+  'COM-003': { clicks: 68, redemptions: 19 },
+  'COM-004': { clicks: 110, redemptions: 42 },
+  'COM-005': { clicks: 76, redemptions: 21 },
+  'ELE-001': { clicks: 235, redemptions: 54 },
+  'ELE-002': { clicks: 180, redemptions: 32 },
+  'ELE-003': { clicks: 88, redemptions: 14 },
+  'ELE-004': { clicks: 125, redemptions: 22 },
+  'ELE-005': { clicks: 95, redemptions: 18 },
+  'CIN-001': { clicks: 210, redemptions: 89 },
+  'CIN-002': { clicks: 165, redemptions: 62 },
+  'CIN-003': { clicks: 120, redemptions: 38 },
+  'CIN-004': { clicks: 84, redemptions: 29 },
+  'CIN-005': { clicks: 70, redemptions: 22 },
+  'ROP-001': { clicks: 130, redemptions: 35 },
+  'ROP-002': { clicks: 92, redemptions: 21 },
+  'ROP-003': { clicks: 115, redemptions: 31 },
+  'ROP-004': { clicks: 64, redemptions: 12 },
+  'ROP-005': { clicks: 78, redemptions: 17 },
+  'ONL-001': { clicks: 290, redemptions: 112 },
+  'ONL-002': { clicks: 175, redemptions: 49 },
+  'ONL-003': { clicks: 140, redemptions: 36 },
+  'ONL-004': { clicks: 105, redemptions: 28 },
+  'ONL-005': { clicks: 85, redemptions: 19 }
+};
+
+let offerMetrics = JSON.parse(JSON.stringify(baselineOfferMetrics));
+
+function getOfferMetric(id) {
+  if (!id) return { clicks: 0, redemptions: 0 };
+  const key = String(id);
+  if (!offerMetrics[key]) {
+    offerMetrics[key] = { clicks: 0, redemptions: 0 };
+  }
+  return offerMetrics[key];
+}
+
+async function calculatePromotionMetrics() {
+  const data = await fetchOffersData();
+  const offers = (data && data.ofertas) ? data.ofertas : [];
+
+  let totalClicks = 0;
+  let totalRedemptions = 0;
+  const categoryAgg = {};
+
+  const enrichedOffers = offers.map(offer => {
+    const metric = getOfferMetric(offer.id || offer.id_offer);
+    const clicks = metric.clicks || 0;
+    const redemptions = metric.redemptions || 0;
+    const conversionRate = clicks > 0
+      ? parseFloat(((redemptions / clicks) * 100).toFixed(2))
+      : 0;
+
+    totalClicks += clicks;
+    totalRedemptions += redemptions;
+
+    const cat = (offer.categoria || 'otras').toLowerCase();
+    if (!categoryAgg[cat]) {
+      categoryAgg[cat] = { categoria: cat, clicks: 0, redemptions: 0 };
+    }
+    categoryAgg[cat].clicks += clicks;
+    categoryAgg[cat].redemptions += redemptions;
+
+    return {
+      ...offer,
+      clicks,
+      redemptions,
+      conversionRate
+    };
+  });
+
+  // Identificación de destacados e indicadores comparativos para decisiones de negocio
+  let mostClicked = null;
+  let mostRedeemed = null;
+  let bestConversion = null;
+
+  if (enrichedOffers.length > 0) {
+    mostClicked = [...enrichedOffers].sort((a, b) => b.clicks - a.clicks)[0];
+    mostRedeemed = [...enrichedOffers].sort((a, b) => b.redemptions - a.redemptions)[0];
+
+    // Para la mejor tasa de conversión, considerar promociones con volumen representativo (clicks >= 5)
+    const validCandidates = enrichedOffers.filter(o => o.clicks >= 5);
+    const pool = validCandidates.length > 0 ? validCandidates : enrichedOffers;
+    bestConversion = [...pool].sort((a, b) => b.conversionRate - a.conversionRate)[0];
+  }
+
+  const categoryStats = Object.values(categoryAgg).map(cat => ({
+    ...cat,
+    conversionRate: cat.clicks > 0
+      ? parseFloat(((cat.redemptions / cat.clicks) * 100).toFixed(2))
+      : 0
+  })).sort((a, b) => b.redemptions - a.redemptions);
+
+  const globalConversionRate = totalClicks > 0
+    ? parseFloat(((totalRedemptions / totalClicks) * 100).toFixed(2))
+    : 0;
+
+  return {
+    totales: {
+      totalClicks,
+      totalRedemptions,
+      globalConversionRate,
+      totalPromociones: enrichedOffers.length
+    },
+    destacadas: {
+      mostClicked: mostClicked ? {
+        id: mostClicked.id,
+        titulo: mostClicked.titulo,
+        categoria: mostClicked.categoria,
+        establecimiento: mostClicked.establecimiento,
+        clicks: mostClicked.clicks,
+        redemptions: mostClicked.redemptions,
+        conversionRate: mostClicked.conversionRate
+      } : null,
+      mostRedeemed: mostRedeemed ? {
+        id: mostRedeemed.id,
+        titulo: mostRedeemed.titulo,
+        categoria: mostRedeemed.categoria,
+        establecimiento: mostRedeemed.establecimiento,
+        clicks: mostRedeemed.clicks,
+        redemptions: mostRedeemed.redemptions,
+        conversionRate: mostRedeemed.conversionRate
+      } : null,
+      bestConversion: bestConversion ? {
+        id: bestConversion.id,
+        titulo: bestConversion.titulo,
+        categoria: bestConversion.categoria,
+        establecimiento: bestConversion.establecimiento,
+        clicks: bestConversion.clicks,
+        redemptions: bestConversion.redemptions,
+        conversionRate: bestConversion.conversionRate
+      } : null
+    },
+    categorias: categoryStats,
+    ofertas: enrichedOffers
+  };
+}
+
+// Endpoint para consultar el panel de métricas consolidado de promociones (US-007)
+app.get('/api/metricas-promociones', async (req, res) => {
+  try {
+    const metrics = await calculatePromotionMetrics();
+    res.json(metrics);
+  } catch (err) {
+    res.status(500).json({ error: 'Error calculando métricas de promociones: ' + err.message });
+  }
+});
+
+// Endpoint para registrar dinámicamente interacciones (clic o redención) con una promoción (US-007)
+app.post('/api/metricas-promociones/track', (req, res) => {
+  const { offerId, action } = req.body;
+  if (!offerId) {
+    return res.status(400).json({ error: 'offerId es requerido' });
+  }
+
+  const metric = getOfferMetric(offerId);
+  const normalizedAction = (action || '').toLowerCase();
+
+  if (normalizedAction === 'click' || normalizedAction === 'offer-click' || normalizedAction === 'interaction') {
+    metric.clicks = (metric.clicks || 0) + 1;
+  } else if (normalizedAction === 'redeem' || normalizedAction === 'offer-redeem' || normalizedAction === 'canje') {
+    metric.redemptions = (metric.redemptions || 0) + 1;
+  } else {
+    metric.clicks = (metric.clicks || 0) + 1;
+  }
+
+  const conversionRate = metric.clicks > 0
+    ? parseFloat(((metric.redemptions / metric.clicks) * 100).toFixed(2))
+    : 0;
+
+  res.json({
+    success: true,
+    offerId,
+    action: normalizedAction,
+    clicks: metric.clicks,
+    redemptions: metric.redemptions,
+    conversionRate
+  });
+});
+
+// Endpoint para reiniciar métricas al estado inicial (útil para pruebas demo)
+app.post('/api/metricas-promociones/reset', (req, res) => {
+  offerMetrics = JSON.parse(JSON.stringify(baselineOfferMetrics));
+  res.json({ success: true, message: 'Métricas reiniciadas al valor base' });
+});
+
 // Example 1: Node.js Server-Side Tracking Endpoint
 app.post('/api/track-backend', async (req, res) => {
   const { eventType, profileId, sessionId, properties } = req.body;

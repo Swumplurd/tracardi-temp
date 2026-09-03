@@ -1248,4 +1248,454 @@ body {
   }
 }
 
+/* ==========================================
+   MÉTRICAS DE PROMOCIONES (US-007)
+   ========================================== */
+
+/* KPI Cards Grid */
+.metrics-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.25rem;
+}
+
+.metric-kpi-card {
+  background: var(--card-dark-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.metric-kpi-card:hover {
+  transform: translateY(-2px);
+}
+
+.metric-kpi-card.kpi-blue { border-left: 4px solid var(--accent-blue); }
+.metric-kpi-card.kpi-green { border-left: 4px solid var(--accent-green); }
+.metric-kpi-card.kpi-purple { border-left: 4px solid var(--accent-purple); }
+.metric-kpi-card.kpi-amber { border-left: 4px solid var(--accent-amber); }
+
+.metric-kpi-card .kpi-icon {
+  font-size: 2.2rem;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+}
+
+.kpi-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.kpi-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.1;
+  margin: 0.2rem 0;
+  font-family: var(--font-sans);
+}
+
+.kpi-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Highlights Grid (Promociones Destacadas) */
+.metrics-highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.highlight-card {
+  background: var(--card-dark-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+}
+
+.highlight-card:hover {
+  border-color: rgba(139, 92, 246, 0.4);
+  transform: translateY(-2px);
+}
+
+.highlight-badge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.highlight-stat-pill {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+}
+
+.highlight-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 0.35rem;
+  line-height: 1.35;
+}
+
+.highlight-meta {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.highlight-action-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.highlight-rate-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.highlight-rate-label strong {
+  color: var(--accent-green);
+  font-family: var(--font-mono);
+}
+
+/* Strategic Decision Insights Box */
+.decision-insights-box {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(139, 92, 246, 0.08));
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 12px;
+  padding: 1.1rem 1.4rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.decision-icon {
+  font-size: 1.8rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.decision-content h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #93c5fd;
+  margin-bottom: 0.3rem;
+}
+
+.decision-content p {
+  font-size: 0.88rem;
+  color: #cbd5e1;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Category Performance Grid */
+.metrics-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.metric-category-card {
+  background: var(--card-dark-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.metric-category-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.metric-cat-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.metric-cat-rate {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent-teal);
+  font-family: var(--font-mono);
+}
+
+.metric-cat-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+}
+
+.metric-cat-stats strong {
+  color: var(--text-main);
+  font-family: var(--font-mono);
+}
+
+.conversion-progress-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.conversion-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-teal));
+  border-radius: 10px;
+  transition: width 0.4s ease;
+}
+
+/* Metrics Table & Controls */
+.metrics-filters-row {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-input-wrapper input {
+  background: var(--card-dark-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  border-radius: 8px;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.85rem;
+  width: 220px;
+  transition: border-color 0.2s ease;
+}
+
+.search-input-wrapper input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+.sort-buttons-group {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.metric-sort-btn.active {
+  background: var(--accent-blue);
+  color: #fff;
+  border-color: var(--accent-blue);
+}
+
+.metrics-table-container {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.metrics-table th {
+  padding: 0.8rem 0.75rem;
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 2px solid var(--border-color);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.metrics-table td {
+  padding: 0.85rem 0.75rem;
+  border-bottom: 1px solid rgba(38, 51, 77, 0.6);
+  vertical-align: middle;
+}
+
+.metrics-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.promo-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.promo-cell strong {
+  color: var(--text-main);
+  font-size: 0.92rem;
+}
+
+.promo-id-tag {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--accent-purple);
+  margin-left: 0.35rem;
+}
+
+.conversion-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.conversion-pill {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.mini-progress-bar {
+  width: 80px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mini-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+/* Badges de destaque */
+.badge-highlight-gold {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.badge-highlight-purple {
+  background: rgba(139, 92, 246, 0.18);
+  color: #c4b5fd;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.badge-highlight-blue {
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.badge-highlight-green {
+  background: rgba(16, 185, 129, 0.18);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.badge-neutral {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* Botones pequeños */
+.btn-xs {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+  border-radius: 6px;
+}
+
+/* Redemption Success Feedback Box */
+.redeem-success-box {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 12px;
+  padding: 1.1rem;
+  margin-bottom: 1rem;
+  animation: fadeIn 0.3s ease;
+}
+
+.redeem-success-header {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #6ee7b7;
+  margin-bottom: 0.4rem;
+}
+
+.redeem-success-msg {
+  font-size: 0.88rem;
+  color: var(--text-main);
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+}
+
+.redeem-coupon-highlight {
+  font-family: var(--font-mono);
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  font-weight: 700;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.redeem-success-sub {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
 

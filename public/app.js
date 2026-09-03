@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
   checkHealth();
   updateProfileInterests(currentInterests);
   loadOfertas();
+  loadAndRenderMetricas();
 });
 
 // Check Server & Tracardi Health
@@ -74,9 +75,15 @@ function initTabs() {
 
       btn.classList.add('active');
       const targetId = btn.getAttribute('data-tab');
-      document.getElementById(targetId).classList.add('active');
+      const targetContent = document.getElementById(targetId);
+      if (targetContent) {
+        targetContent.classList.add('active');
+      }
       if (targetId === 'ofertas-tab') {
         renderOfertas();
+      }
+      if (targetId === 'metricas-tab') {
+        loadAndRenderMetricas();
       }
     });
   });
@@ -758,8 +765,10 @@ function viewOfferDetail(offerId) {
 
             <div class="divider" style="margin: 1.2rem 0;"></div>
 
-            <button class="btn btn-green btn-full-width" onclick="trackOfferInteraction('${escapeHtml(oferta.id)}', 'offer-redeem')">
-              ⚡ Simular Canje de Oferta (Track)
+            <div id="redeem-feedback-container"></div>
+
+            <button id="btn-redeem-offer" class="btn btn-green btn-full-width" onclick="openRedeemModal('${escapeHtml(oferta.id)}')">
+              🎟️ Canjear Promoción (Redimir Cupón)
             </button>
           </div>
         </div>
@@ -768,22 +777,32 @@ function viewOfferDetail(offerId) {
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // Disparar evento de segmentación específico según la categoría y región de la oferta
-    const segEvent = 'offer-view';
-    trackOfertaEvent(segEvent, {
+    // Datos de interacción con la oferta (US-007)
+    const offerInteractionData = {
+      id: oferta.id,
       offer_id: oferta.id,
       title: oferta.titulo,
       category: oferta.categoria,
       entidad_federativa: oferta.entidad_federativa || null,
       store: oferta.establecimiento,
       price_original: oferta.precio_original,
+      price: oferta.precio_oferta,
       price_offer: oferta.precio_oferta,
       discount_percentage: oferta.descuento_porcentaje,
       coupon_code: oferta.codigo_cupon,
       expiration_date: oferta.fecha_expiracion,
       offer_type: oferta.tipo_oferta,
-      action: 'offer_detail_view'
-    }, true);
+      action: 'offer_click'
+    };
+
+    // Emitir evento 'offer-click' hacia Tracardi CDP (US-007)
+    trackOfertaEvent('offer-click', offerInteractionData, true);
+
+    // Mantener sincronización con 'offer-view' para perfiles de interés (US-001/US-003)
+    trackOfertaEvent('offer-view', offerInteractionData, false);
+
+    // Registrar interacción de clic en métricas dinámicas de promociones (US-007)
+    recordPromotionMetric(oferta.id, 'click');
   }
 }
 
@@ -861,27 +880,455 @@ async function trackOfertaEvent(eventType, properties = {}, showNotification = t
   }
 }
 
-// Simular interacción o canje de oferta
-function trackOfferInteraction(offerId, actionType) {
+// ==========================================
+// SECCIÓN: MÉTRICAS DE PROMOCIONES (US-007)
+// ==========================================
+
+let currentMetricsData = null;
+let currentMetricsSort = 'redemptions';
+let metricsSearchFilter = '';
+let pendingRedeemOfferId = null;
+
+// Modal de confirmación de canje (US-007)
+function openRedeemModal(offerId) {
   const oferta = ofertasList.find(o =>
     String(o.id) === String(offerId) ||
     String(o.id_offer) === String(offerId) ||
     String(o.documentId) === String(offerId) ||
     String(o.strapi_id) === String(offerId)
   );
+  if (!oferta) {
+    showToast('Oferta no encontrada para canje', 'error');
+    return;
+  }
+
+  pendingRedeemOfferId = oferta.id;
+
+  const modal = document.getElementById('redeem-confirm-modal');
+  const titleEl = document.getElementById('redeem-modal-promo-title');
+  const storeEl = document.getElementById('redeem-modal-promo-store');
+  const couponEl = document.getElementById('redeem-modal-promo-coupon');
+
+  if (titleEl) titleEl.textContent = oferta.titulo;
+  if (storeEl) storeEl.textContent = `🏪 ${oferta.establecimiento} • Descuento: -${oferta.descuento_porcentaje}% ($${oferta.precio_oferta.toFixed(2)} ${oferta.moneda})`;
+  if (couponEl) couponEl.textContent = oferta.codigo_cupon;
+
+  if (modal) {
+    modal.classList.remove('modal-hidden');
+  }
+}
+
+function closeRedeemModal() {
+  const modal = document.getElementById('redeem-confirm-modal');
+  if (modal) {
+    modal.classList.add('modal-hidden');
+  }
+  pendingRedeemOfferId = null;
+}
+
+// Confirmar y procesar la redención de la oferta con emisión a Tracardi y feedback al usuario (US-007)
+async function confirmRedeemAction() {
+  if (!pendingRedeemOfferId) {
+    closeRedeemModal();
+    return;
+  }
+
+  const offerId = pendingRedeemOfferId;
+  closeRedeemModal();
+
+  const oferta = ofertasList.find(o =>
+    String(o.id) === String(offerId) ||
+    String(o.id_offer) === String(offerId) ||
+    String(o.documentId) === String(offerId) ||
+    String(o.strapi_id) === String(offerId)
+  );
+
   if (!oferta) return;
 
-  trackOfertaEvent(actionType || 'offer-redeem', {
+  // 1. Emitir evento 'offer-redeem' a Tracardi con datos comerciales
+  await trackOfertaEvent('offer-redeem', {
+    id: oferta.id,
     offer_id: oferta.id,
     title: oferta.titulo,
     category: oferta.categoria,
     store: oferta.establecimiento,
     price: oferta.precio_oferta,
+    price_original: oferta.precio_original,
+    discount_percentage: oferta.descuento_porcentaje,
     coupon: oferta.codigo_cupon,
+    coupon_code: oferta.codigo_cupon,
+    entidad_federativa: oferta.entidad_federativa || null,
+    action: 'offer_redeem',
     redeemed_at: new Date().toISOString()
   }, true);
 
-  showToast(`🎉 ¡Oferta '${oferta.titulo}' canjeada en simulación!`, 'success');
+  // 2. Registrar redención dinámicamente en el backend de métricas
+  await recordPromotionMetric(oferta.id, 'redeem');
+
+  // 3. Confirmación visual directa al usuario en la ficha de detalle (si está visible)
+  const feedbackContainer = document.getElementById('redeem-feedback-container');
+  if (feedbackContainer) {
+    feedbackContainer.innerHTML = `
+      <div class="redeem-success-box">
+        <div class="redeem-success-header">
+          <span>✅ ¡Canje Exitoso Confirmado!</span>
+        </div>
+        <p class="redeem-success-msg">
+          Has redimido la promoción <strong>${escapeHtml(oferta.titulo)}</strong>.
+          Presenta tu cupón <span class="redeem-coupon-highlight">${escapeHtml(oferta.codigo_cupon)}</span> en <strong>${escapeHtml(oferta.establecimiento)}</strong> para hacer válido tu ${oferta.descuento_porcentaje}% de descuento.
+        </p>
+        <small class="redeem-success-sub">Evento emitido a Tracardi CDP y métricas de conversión actualizadas en tiempo real.</small>
+      </div>
+    `;
+  }
+
+  // Actualizar botón para retroalimentación de estado
+  const btnRedeem = document.getElementById('btn-redeem-offer');
+  if (btnRedeem) {
+    btnRedeem.classList.remove('btn-green');
+    btnRedeem.classList.add('btn-outline');
+    btnRedeem.innerHTML = '✨ ¡Promoción Canjeada! (Canjear de nuevo)';
+  }
+
+  showToast(`🎉 ¡Oferta '${oferta.titulo}' canjeada con éxito! Cupón: ${oferta.codigo_cupon}`, 'success');
+}
+
+// Simular interacción o canje de oferta (compatibilidad con llamadas legacy)
+function trackOfferInteraction(offerId, actionType) {
+  if (actionType === 'offer-redeem') {
+    openRedeemModal(offerId);
+  } else {
+    viewOfferDetail(offerId);
+  }
+}
+
+// Registrar métrica (clic o canje) en el backend y refrescar estado dinámico
+async function recordPromotionMetric(offerId, action) {
+  try {
+    const res = await fetch('/api/metricas-promociones/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ offerId, action })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} al registrar métrica`);
+    const data = await res.json();
+
+    // Actualizar datos locales en memoria para respuesta ultra rápida
+    if (currentMetricsData && currentMetricsData.ofertas) {
+      const match = currentMetricsData.ofertas.find(o => String(o.id) === String(offerId));
+      if (match) {
+        if (action === 'click') match.clicks = (match.clicks || 0) + 1;
+        if (action === 'redeem') match.redemptions = (match.redemptions || 0) + 1;
+        match.conversionRate = match.clicks > 0
+          ? parseFloat(((match.redemptions / match.clicks) * 100).toFixed(2))
+          : 0;
+      }
+    }
+
+    // Si la pestaña de métricas está abierta, refrescar inmediatamente las cifras
+    const metricasTab = document.getElementById('metricas-tab');
+    if (metricasTab && metricasTab.classList.contains('active')) {
+      loadAndRenderMetricas(false);
+    }
+    return data;
+  } catch (err) {
+    console.warn('Error registrando métrica en backend:', err.message);
+    return null;
+  }
+}
+
+// Cargar datos de métricas y renderizar el panel completo (US-007)
+async function loadAndRenderMetricas(notify = false) {
+  try {
+    const res = await fetch('/api/metricas-promociones');
+    if (!res.ok) throw new Error(`HTTP ${res.status} al cargar métricas`);
+    const data = await res.json();
+    currentMetricsData = data;
+
+    renderMetricasKPIs(data.totales || {});
+    renderMetricasHighlights(data.destacadas || {});
+    renderMetricasCategories(data.categorias || []);
+    renderMetricsTable();
+
+    if (notify) {
+      showToast('🔄 Métricas de promociones actualizadas', 'success');
+    }
+  } catch (err) {
+    console.error('Error cargando métricas de promociones:', err);
+  }
+}
+
+// Renderizar tarjetas de KPIs globales
+function renderMetricasKPIs(totales) {
+  const clicksEl = document.getElementById('kpi-total-clicks');
+  const redemptionsEl = document.getElementById('kpi-total-redemptions');
+  const convEl = document.getElementById('kpi-global-conversion');
+  const promosEl = document.getElementById('kpi-total-promos');
+
+  if (clicksEl) clicksEl.textContent = (totales.totalClicks || 0).toLocaleString();
+  if (redemptionsEl) redemptionsEl.textContent = (totales.totalRedemptions || 0).toLocaleString();
+  if (convEl) convEl.textContent = `${(totales.globalConversionRate || 0).toFixed(1)}%`;
+  if (promosEl) promosEl.textContent = (totales.totalPromociones || ofertasList.length || 0);
+}
+
+// Renderizar las promociones destacadas (Mayor clic, Mayor redención, Mayor conversión)
+function renderMetricasHighlights(destacadas) {
+  // 1. Más Clickeada
+  const mc = destacadas.mostClicked;
+  const mcTitle = document.getElementById('highlight-most-clicks-title');
+  const mcVal = document.getElementById('highlight-most-clicks-val');
+  const mcStore = document.getElementById('highlight-most-clicks-store');
+  const mcCat = document.getElementById('highlight-most-clicks-cat');
+  const mcRate = document.getElementById('highlight-most-clicks-rate');
+  const mcBtn = document.getElementById('btn-view-most-clicks');
+
+  if (mc) {
+    if (mcTitle) mcTitle.textContent = mc.titulo;
+    if (mcVal) mcVal.textContent = `${(mc.clicks || 0).toLocaleString()} clics`;
+    if (mcStore) mcStore.textContent = mc.establecimiento;
+    if (mcCat) mcCat.textContent = (mc.categoria || '').toUpperCase();
+    if (mcRate) mcRate.textContent = `${(mc.conversionRate || 0).toFixed(1)}%`;
+    if (mcBtn) mcBtn.onclick = () => goToOfferFromMetrics(mc.id);
+  }
+
+  // 2. Más Redimida
+  const mr = destacadas.mostRedeemed;
+  const mrTitle = document.getElementById('highlight-most-redeemed-title');
+  const mrVal = document.getElementById('highlight-most-redeemed-val');
+  const mrStore = document.getElementById('highlight-most-redeemed-store');
+  const mrCat = document.getElementById('highlight-most-redeemed-cat');
+  const mrRate = document.getElementById('highlight-most-redeemed-rate');
+  const mrBtn = document.getElementById('btn-view-most-redeemed');
+
+  if (mr) {
+    if (mrTitle) mrTitle.textContent = mr.titulo;
+    if (mrVal) mrVal.textContent = `${(mr.redemptions || 0).toLocaleString()} canjes`;
+    if (mrStore) mrStore.textContent = mr.establecimiento;
+    if (mrCat) mrCat.textContent = (mr.categoria || '').toUpperCase();
+    if (mrRate) mrRate.textContent = `${(mr.conversionRate || 0).toFixed(1)}%`;
+    if (mrBtn) mrBtn.onclick = () => goToOfferFromMetrics(mr.id);
+  }
+
+  // 3. Mayor Conversión / Efectividad
+  const bc = destacadas.bestConversion;
+  const bcTitle = document.getElementById('highlight-best-conv-title');
+  const bcVal = document.getElementById('highlight-best-conv-val');
+  const bcStore = document.getElementById('highlight-best-conv-store');
+  const bcCat = document.getElementById('highlight-best-conv-cat');
+  const bcRed = document.getElementById('highlight-best-conv-redemptions');
+  const bcBtn = document.getElementById('btn-view-best-conv');
+
+  if (bc) {
+    if (bcTitle) bcTitle.textContent = bc.titulo;
+    if (bcVal) bcVal.textContent = `${(bc.conversionRate || 0).toFixed(1)}% tasa`;
+    if (bcStore) bcStore.textContent = bc.establecimiento;
+    if (bcCat) bcCat.textContent = (bc.categoria || '').toUpperCase();
+    if (bcRed) bcRed.textContent = `${bc.redemptions} canjes (${bc.clicks} clics)`;
+    if (bcBtn) bcBtn.onclick = () => goToOfferFromMetrics(bc.id);
+  }
+}
+
+// Renderizar comparativa por categoría
+function renderMetricasCategories(categories) {
+  const container = document.getElementById('metrics-category-grid');
+  if (!container) return;
+
+  if (!categories || categories.length === 0) {
+    container.innerHTML = '<div class="empty-state">Sin datos de categorías</div>';
+    return;
+  }
+
+  container.innerHTML = categories.map(cat => {
+    const icon = getCategoryIcon(cat.categoria);
+    const catName = (cat.categoria || '').toUpperCase();
+    const rate = (cat.conversionRate || 0).toFixed(1);
+    return `
+      <div class="metric-category-card">
+        <div class="metric-category-header">
+          <span class="metric-cat-name">${icon} ${catName}</span>
+          <span class="metric-cat-rate">${rate}% conv.</span>
+        </div>
+        <div class="metric-cat-stats">
+          <div><small>Clics:</small> <strong>${(cat.clicks || 0).toLocaleString()}</strong></div>
+          <div><small>Canjes:</small> <strong>${(cat.redemptions || 0).toLocaleString()}</strong></div>
+        </div>
+        <div class="conversion-progress-track">
+          <div class="conversion-progress-fill" style="width: ${Math.min(parseFloat(rate) * 2, 100)}%;"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Renderizar tabla detallada de promociones con ordenamiento y búsqueda (US-007)
+function renderMetricsTable() {
+  const tbody = document.getElementById('metrics-table-body');
+  if (!tbody || !currentMetricsData || !currentMetricsData.ofertas) return;
+
+  let offers = [...currentMetricsData.ofertas];
+
+  // Filtro de búsqueda
+  if (metricsSearchFilter) {
+    const q = metricsSearchFilter.toLowerCase();
+    offers = offers.filter(o =>
+      (o.titulo && o.titulo.toLowerCase().includes(q)) ||
+      (o.establecimiento && o.establecimiento.toLowerCase().includes(q)) ||
+      (o.categoria && o.categoria.toLowerCase().includes(q)) ||
+      (o.id && o.id.toLowerCase().includes(q))
+    );
+  }
+
+  // Ordenamiento
+  offers.sort((a, b) => {
+    if (currentMetricsSort === 'redemptions') {
+      return (b.redemptions || 0) - (a.redemptions || 0);
+    }
+    if (currentMetricsSort === 'conversion') {
+      return (b.conversionRate || 0) - (a.conversionRate || 0);
+    }
+    if (currentMetricsSort === 'clicks') {
+      return (b.clicks || 0) - (a.clicks || 0);
+    }
+    if (currentMetricsSort === 'category') {
+      return (a.categoria || '').localeCompare(b.categoria || '');
+    }
+    return 0;
+  });
+
+  if (offers.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+          No se encontraron promociones que coincidan con el criterio de búsqueda.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  // Identificar máximos para destacar badges
+  const maxRedemptions = Math.max(...offers.map(o => o.redemptions || 0));
+  const maxClicks = Math.max(...offers.map(o => o.clicks || 0));
+  const maxConversion = Math.max(...offers.map(o => o.conversionRate || 0));
+
+  tbody.innerHTML = offers.map(oferta => {
+    const icon = getCategoryIcon(oferta.categoria);
+    const convRate = (oferta.conversionRate || 0).toFixed(1);
+    
+    // Badges de destaque comercial
+    let badgeHtml = '<span class="badge-neutral">Regular</span>';
+    if (oferta.redemptions === maxRedemptions && maxRedemptions > 0) {
+      badgeHtml = '<span class="badge-highlight-gold">🏆 Top Canjes</span>';
+    } else if (oferta.conversionRate === maxConversion && maxConversion > 0) {
+      badgeHtml = '<span class="badge-highlight-purple">⚡ Top Conversión</span>';
+    } else if (oferta.clicks === maxClicks && maxClicks > 0) {
+      badgeHtml = '<span class="badge-highlight-blue">👁️ Más Clics</span>';
+    } else if (oferta.conversionRate >= 35) {
+      badgeHtml = '<span class="badge-highlight-green">🔥 Alta Conversión</span>';
+    }
+
+    const convColor = oferta.conversionRate >= 35
+      ? 'var(--accent-green)'
+      : (oferta.conversionRate >= 20 ? 'var(--accent-blue)' : 'var(--accent-amber)');
+
+    return `
+      <tr class="metric-row">
+        <td>
+          <div class="promo-cell">
+            <strong>${escapeHtml(oferta.titulo)}</strong>
+            <small class="text-muted">🏪 ${escapeHtml(oferta.establecimiento)} <span class="promo-id-tag">${escapeHtml(oferta.id)}</span></small>
+          </div>
+        </td>
+        <td style="text-align: center;">
+          <span class="oferta-badge-cat cat-${escapeHtml(oferta.categoria)}" style="font-size: 0.72rem; padding: 0.15rem 0.5rem;">
+            ${icon} ${escapeHtml(oferta.categoria.toUpperCase())}
+          </span>
+        </td>
+        <td style="text-align: right;">
+          <div style="font-weight: 600;">$${oferta.precio_oferta.toFixed(2)}</div>
+          <code style="font-size: 0.75rem; color: var(--accent-amber);">${escapeHtml(oferta.codigo_cupon)}</code>
+        </td>
+        <td style="text-align: right; font-weight: 700; font-family: var(--font-mono); color: #93c5fd;">
+          ${(oferta.clicks || 0).toLocaleString()}
+        </td>
+        <td style="text-align: right; font-weight: 700; font-family: var(--font-mono); color: #6ee7b7;">
+          ${(oferta.redemptions || 0).toLocaleString()}
+        </td>
+        <td style="text-align: center;">
+          <div class="conversion-cell">
+            <span class="conversion-pill" style="color: ${convColor}; border-color: ${convColor};">
+              ${convRate}%
+            </span>
+            <div class="mini-progress-bar">
+              <div class="mini-progress-fill" style="width: ${Math.min(parseFloat(convRate) * 2, 100)}%; background-color: ${convColor};"></div>
+            </div>
+          </div>
+        </td>
+        <td style="text-align: center;">
+          ${badgeHtml}
+        </td>
+        <td style="text-align: center;">
+          <div style="display: flex; gap: 0.35rem; justify-content: center;">
+            <button class="btn btn-xs btn-outline" onclick="goToOfferFromMetrics('${escapeHtml(oferta.id)}')" title="Ver detalle de la oferta">
+              👁️ Ver
+            </button>
+            <button class="btn btn-xs btn-green" onclick="openRedeemModal('${escapeHtml(oferta.id)}')" title="Canjear oferta">
+              🎟️ Canjear
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// Manejar ordenamiento de la tabla
+function sortMetricsTable(sortKey) {
+  currentMetricsSort = sortKey;
+  document.querySelectorAll('.metric-sort-btn').forEach(btn => {
+    if (btn.getAttribute('data-sort') === sortKey) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+  renderMetricsTable();
+}
+
+// Manejar búsqueda en la tabla
+function handleMetricsSearch(value) {
+  metricsSearchFilter = value;
+  renderMetricsTable();
+}
+
+// Refrescar métricas manualmente
+function refreshPromotionMetrics() {
+  loadAndRenderMetricas(true);
+}
+
+// Restablecer métricas a los valores base
+async function resetPromotionMetrics() {
+  try {
+    await fetch('/api/metricas-promociones/reset', { method: 'POST' });
+    await loadAndRenderMetricas(false);
+    showToast('↺ Métricas restablecidas al valor inicial demo', 'info');
+  } catch (err) {
+    showToast('Error restableciendo métricas', 'error');
+  }
+}
+
+// Navegar directamente a la oferta desde la tabla de métricas
+function goToOfferFromMetrics(offerId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+  const ofertasTabBtn = document.querySelector('.tab-btn[data-tab="ofertas-tab"]');
+  const ofertasTabContent = document.getElementById('ofertas-tab');
+
+  if (ofertasTabBtn) ofertasTabBtn.classList.add('active');
+  if (ofertasTabContent) ofertasTabContent.classList.add('active');
+
+  viewOfferDetail(offerId);
 }
 
 // Helpers de utilidades
